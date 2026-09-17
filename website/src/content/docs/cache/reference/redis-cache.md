@@ -3,7 +3,7 @@ title: "RedisCache"
 description: "Redis-backed distributed Cache for @toapi/cache with pub/sub invalidation across hosts."
 ---
 
-`RedisCache` is a [`Cache`](/tapi/cache/reference/cache/) implementation backed by Redis. It supports distributed cache invalidation via Redis pub/sub, making it suitable for multi-host deployments.
+`RedisCache` is a [`Cache`](/toapi/cache/reference/cache/) implementation backed by Redis. It supports distributed cache invalidation via Redis pub/sub, making it suitable for multi-host deployments.
 
 ```ts
 import { RedisCache } from "@toapi/cache/redis-cache";
@@ -78,4 +78,4 @@ unsubscribe();
 ## When to Use
 
 - Multi-host deployments where cache invalidation needs to propagate across processes.
-- When you need the Toapi [Caching](/tapi/server/reference/caching/) pub/sub system to work across multiple servers.
+- When you need the Toapi [Caching](/toapi/server/reference/caching/) pub/sub system to work across multiple servers.

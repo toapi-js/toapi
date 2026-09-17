@@ -15,8 +15,8 @@ function pkg(name, { guides = false } = {}) {
 
 // https://astro.build/config
 export default defineConfig({
-  site: "https://farbenmeer.github.io",
-  base: "/tapi",
+  site: "https://toapi-js.github.io",
+  base: "/toapi",
   integrations: [
     starlight({
       title: "Toapi",
@@ -24,14 +24,14 @@ export default defineConfig({
       favicon: "/favicon.svg",
       head: [
         // Starlight's `favicon` is base-prefixed automatically; these custom
-        // links are not, so include the /tapi base explicitly.
-        { tag: "link", attrs: { rel: "icon", type: "image/png", sizes: "96x96", href: "/tapi/favicon-96x96.png" } },
-        { tag: "link", attrs: { rel: "shortcut icon", href: "/tapi/favicon.ico" } },
-        { tag: "link", attrs: { rel: "apple-touch-icon", sizes: "180x180", href: "/tapi/apple-touch-icon.png" } },
-        { tag: "link", attrs: { rel: "manifest", href: "/tapi/site.webmanifest" } },
+        // links are not, so include the /toapi base explicitly.
+        { tag: "link", attrs: { rel: "icon", type: "image/png", sizes: "96x96", href: "/toapi/favicon-96x96.png" } },
+        { tag: "link", attrs: { rel: "shortcut icon", href: "/toapi/favicon.ico" } },
+        { tag: "link", attrs: { rel: "apple-touch-icon", sizes: "180x180", href: "/toapi/apple-touch-icon.png" } },
+        { tag: "link", attrs: { rel: "manifest", href: "/toapi/site.webmanifest" } },
       ],
       social: [
-        { icon: "github", label: "GitHub", href: "https://github.com/farbenmeer/tapi" },
+        { icon: "github", label: "GitHub", href: "https://github.com/toapi-js/toapi" },
       ],
       plugins: [starlightThemeVintage()],
       sidebar: [

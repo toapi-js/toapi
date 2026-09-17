@@ -3,7 +3,7 @@ title: "FilesystemCache"
 description: "File-based SQLite Cache backend for @toapi/cache — persists across process restarts."
 ---
 
-`FilesystemCache` is a [`Cache`](/tapi/cache/reference/cache/) implementation backed by a file-based SQLite database (via Node.js built-in `node:sqlite`). Data persists across process restarts.
+`FilesystemCache` is a [`Cache`](/toapi/cache/reference/cache/) implementation backed by a file-based SQLite database (via Node.js built-in `node:sqlite`). Data persists across process restarts.
 
 ```ts
 import { FilesystemCache } from "@toapi/cache/filesystem-cache";
@@ -36,7 +36,7 @@ const entry = await cache.get("book:1");
 
 ## Garbage Collection
 
-Same adaptive garbage collection as [InMemoryCache](/tapi/cache/reference/in-memory-cache/) — expired entries are cleaned up periodically with an interval that adjusts between 5 seconds and 5 minutes based on activity.
+Same adaptive garbage collection as [InMemoryCache](/toapi/cache/reference/in-memory-cache/) — expired entries are cleaned up periodically with an interval that adjusts between 5 seconds and 5 minutes based on activity.
 
 ## When to Use
 

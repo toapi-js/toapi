@@ -37,7 +37,7 @@ const user = await client.users["123"].get();
 await client.users["123"].delete();
 ```
 
-See [createFetchClient](/tapi/client/reference/create-fetch-client/) for the full reference.
+See [createFetchClient](/toapi/client/reference/create-fetch-client/) for the full reference.
 
 ## How routes map to methods
 
@@ -56,8 +56,8 @@ Dynamic segments (`:id`) and wildcard segments (`*rest`) accept a `string | numb
 
 ### Method signatures
 
-- **`.get(query?, req?)`** — performs a `GET`. The first argument is the query object (required only if the route declares required query params); the second is a standard `RequestInit`. Returns a promise that is also an [`Observable`](/tapi/client/reference/observable/).
-- **`.post(body?, req?)` / `.put(body?, req?)` / `.patch(body?, req?)`** — performs a mutation with a JSON or `FormData` body. Query params go on `req.query`. Returns a promise augmented with `.revalidated` (see [Revalidation & subscriptions](/tapi/client/reference/revalidation/)).
+- **`.get(query?, req?)`** — performs a `GET`. The first argument is the query object (required only if the route declares required query params); the second is a standard `RequestInit`. Returns a promise that is also an [`Observable`](/toapi/client/reference/observable/).
+- **`.post(body?, req?)` / `.put(body?, req?)` / `.patch(body?, req?)`** — performs a mutation with a JSON or `FormData` body. Query params go on `req.query`. Returns a promise augmented with `.revalidated` (see [Revalidation & subscriptions](/toapi/client/reference/revalidation/)).
 - **`.delete(query?, req?)`** — performs a `DELETE`. The first argument is the query object; the body is always empty.
 - **`.revalidate(query?)`** — forces a re-fetch of the matching `GET` cache entry. See below.
 
@@ -77,11 +77,11 @@ Toapi servers attach cache **tags** to `GET` responses via the `X-TAPI-Tags` hea
 
 The client can also receive invalidations pushed from the server out-of-band, over a long-lived connection to the `/__tapi/invalidations` endpoint (or via a service worker `postMessage`). This keeps open views up to date when data changes on the server without the client having triggered the mutation itself. This is enabled by default and can be disabled with the `invalidationsUrl: false` option.
 
-See [Revalidation & subscriptions](/tapi/client/reference/revalidation/) for details.
+See [Revalidation & subscriptions](/toapi/client/reference/revalidation/) for details.
 
 ## Subscriptions
 
-The promise returned by `.get()` also implements [`Observable`](/tapi/client/reference/observable/): call `.subscribe(callback)` to be notified whenever the cache entry for that URL changes. This is the primitive that [`@toapi/react`](/tapi/react/) builds its hooks on, but you can use it directly with any state-management approach.
+The promise returned by `.get()` also implements [`Observable`](/toapi/client/reference/observable/): call `.subscribe(callback)` to be notified whenever the cache entry for that URL changes. This is the primitive that [`@toapi/react`](/toapi/react/) builds its hooks on, but you can use it directly with any state-management approach.
 
 ```ts
 const result = client.users.get();
@@ -92,16 +92,16 @@ const unsubscribe = result.subscribe((next) => {
 
 ## Error handling
 
-Non-`2xx` responses reject with an [`HttpError`](/tapi/client/reference/http-error/) carrying the status code and any structured error payload. Validation failures reported by the server (`application/json+zodissues`) reject with a `ZodError`.
+Non-`2xx` responses reject with an [`HttpError`](/toapi/client/reference/http-error/) carrying the status code and any structured error payload. Validation failures reported by the server (`application/json+zodissues`) reject with a `ZodError`.
 
 ## Public exports
 
 | Export | Kind | Reference |
 | --- | --- | --- |
-| `createFetchClient` | function | [createFetchClient](/tapi/client/reference/create-fetch-client/) |
-| `Client` | type | [createFetchClient](/tapi/client/reference/create-fetch-client/) |
-| `Observable` | type | [Observable](/tapi/client/reference/observable/) |
-| `GetRoute`, `PostRoute` | types | [Route types](/tapi/client/reference/route-types/) |
-| `HttpError` | class (re-export) | [HttpError](/tapi/client/reference/http-error/) |
-| `INVALIDATIONS_ROUTE` | constant (re-export) | [Revalidation & subscriptions](/tapi/client/reference/revalidation/) |
-| `Logger` | type (re-export) | [createFetchClient](/tapi/client/reference/create-fetch-client/) |
+| `createFetchClient` | function | [createFetchClient](/toapi/client/reference/create-fetch-client/) |
+| `Client` | type | [createFetchClient](/toapi/client/reference/create-fetch-client/) |
+| `Observable` | type | [Observable](/toapi/client/reference/observable/) |
+| `GetRoute`, `PostRoute` | types | [Route types](/toapi/client/reference/route-types/) |
+| `HttpError` | class (re-export) | [HttpError](/toapi/client/reference/http-error/) |
+| `INVALIDATIONS_ROUTE` | constant (re-export) | [Revalidation & subscriptions](/toapi/client/reference/revalidation/) |
+| `Logger` | type (re-export) | [createFetchClient](/toapi/client/reference/create-fetch-client/) |

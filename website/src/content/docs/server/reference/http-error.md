@@ -3,7 +3,7 @@ title: "HttpError"
 description: "Throw a typed HTTP error from a Toapi handler or authorizer to control the status code and error payload of the response."
 ---
 
-`HttpError` is an `Error` subclass you throw from an `authorize` function or a route handler to control the HTTP status and payload of the error response. It is re-exported from `@toapi/server` (defined in `@toapi/common`). When the [request handler](/tapi/server/reference/create-request-handler/#error-handling) catches an `HttpError`, it responds with the given `status`, a JSON body of `{ message, data }`, and `Content-Type: application/json+httperror` — a shape the [client](/tapi/client/) understands and rethrows.
+`HttpError` is an `Error` subclass you throw from an `authorize` function or a route handler to control the HTTP status and payload of the error response. It is re-exported from `@toapi/server` (defined in `@toapi/common`). When the [request handler](/toapi/server/reference/create-request-handler/#error-handling) catches an `HttpError`, it responds with the given `status`, a JSON body of `{ message, data }`, and `Content-Type: application/json+httperror` — a shape the [client](/toapi/client/) understands and rethrows.
 
 ## Signature
 
@@ -65,10 +65,10 @@ throw new HttpError(422, "Validation failed", {
 The client receives the `status`, `message`, and `data`, letting you branch on typed error details.
 
 :::note
-Uncaught non-`HttpError` errors are reported to the [logger](/tapi/server/reference/define-api/#logger-interface) and returned as a generic `500 Internal Server Error`, so internal failure details never leak to clients. Throw `HttpError` whenever you want a specific status and message to reach the caller. Zod validation failures are handled separately as `400` responses.
+Uncaught non-`HttpError` errors are reported to the [logger](/toapi/server/reference/define-api/#logger-interface) and returned as a generic `500 Internal Server Error`, so internal failure details never leak to clients. Throw `HttpError` whenever you want a specific status and message to reach the caller. Zod validation failures are handled separately as `400` responses.
 :::
 
 ## Related
 
-- [`defineHandler`](/tapi/server/reference/define-handler/) — where you typically throw `HttpError`.
-- [`createRequestHandler`](/tapi/server/reference/create-request-handler/#error-handling) — how thrown errors become responses.
+- [`defineHandler`](/toapi/server/reference/define-handler/) — where you typically throw `HttpError`.
+- [`createRequestHandler`](/toapi/server/reference/create-request-handler/#error-handling) — how thrown errors become responses.

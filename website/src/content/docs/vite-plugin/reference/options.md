@@ -54,4 +54,4 @@ example, native modules that cannot be bundled — and provide them from
 `node_modules` at runtime instead.
 
 For how to run the server bundle in production, see
-[Deployment](/tapi/vite-plugin/guides/deployment/).
+[Deployment](/toapi/vite-plugin/guides/deployment/).

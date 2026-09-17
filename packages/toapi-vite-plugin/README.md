@@ -1,9 +1,11 @@
 # @toapi/vite-plugin
 
-Vite plugin for [Toapi](https://github.com/farbenmeer/tapi). Bundles your Toapi
+Vite plugin for [Toapi](https://github.com/toapi-js/toapi). Bundles your Toapi
 API alongside your Vite frontend in a single project: serves the API as
 middleware in dev and preview mode, and produces a deployable server bundle
 for production.
+
+📚 [Docs](https://toapi-js.github.io/toapi/vite-plugin/)
 
 ## Installation
 
@@ -206,4 +208,4 @@ handles the request.
 > and there is no `304` revalidation. For a client-routed SPA in production,
 > front it with a static server or CDN that handles the history fallback and
 > caching. See the reference `Caddyfile` in
-> [`examples/vite-plugin-tapi-demo`](https://github.com/farbenmeer/tapi/tree/main/examples/vite-plugin-tapi-demo).
+> [`examples/vite-plugin-tapi-demo`](https://github.com/toapi-js/toapi/tree/main/examples/vite-plugin-tapi-demo).

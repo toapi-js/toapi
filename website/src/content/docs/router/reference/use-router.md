@@ -87,7 +87,7 @@ router.replace("/dashboard");
 
 ## Context-Aware Resolution
 
-Like [`Link`](/tapi/router/reference/link/), `useRouter` resolves the URL you pass relative to the current route context. Absolute paths (starting with `/`) navigate exactly; relative paths resolve against the matched parent route; and query-only (`?…`) or hash-only (`#…`) hrefs are appended to the current location.
+Like [`Link`](/toapi/router/reference/link/), `useRouter` resolves the URL you pass relative to the current route context. Absolute paths (starting with `/`) navigate exactly; relative paths resolve against the matched parent route; and query-only (`?…`) or hash-only (`#…`) hrefs are appended to the current location.
 
 ```tsx
 // Inside a route matched at /users/123
@@ -181,7 +181,7 @@ function ArchiveButton({ itemId, onArchive }) {
 
 ## Related
 
-- [Link](/tapi/router/reference/link/) — declarative navigation as an anchor element
-- [usePathname](/tapi/router/reference/use-pathname/) — access the current pathname
-- [useParams](/tapi/router/reference/use-params/) — access route parameters
-- [useSearchParams](/tapi/router/reference/use-search-params/) — access search parameters
+- [Link](/toapi/router/reference/link/) — declarative navigation as an anchor element
+- [usePathname](/toapi/router/reference/use-pathname/) — access the current pathname
+- [useParams](/toapi/router/reference/use-params/) — access route parameters
+- [useSearchParams](/toapi/router/reference/use-search-params/) — access search parameters

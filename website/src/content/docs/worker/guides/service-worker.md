@@ -9,7 +9,7 @@ register it on your page.
 ## 1. Create the Service Worker
 
 Create a `service-worker.ts` file in your project (e.g. at the root or in
-`src/`) and call [`setupToapiWorker`](/tapi/worker/reference/setup-toapi-worker/):
+`src/`) and call [`setupToapiWorker`](/toapi/worker/reference/setup-toapi-worker/):
 
 ```ts
 // service-worker.ts
@@ -122,11 +122,11 @@ Or add it as a build script in your `package.json`:
 
 ### Using Vite + `@toapi/vite-plugin`
 
-If your project uses [`@toapi/vite-plugin`](/tapi/vite-plugin/),
+If your project uses [`@toapi/vite-plugin`](/toapi/vite-plugin/),
 the cleanest way to build the service worker is with
 [`vite-plugin-pwa`](https://vite-pwa-org.netlify.app/) in
 `injectManifest` mode, alongside `tapi()`. See the
-[vite-plugin docs](/tapi/vite-plugin/) for the full recipe.
+[vite-plugin docs](/toapi/vite-plugin/) for the full recipe.
 
 ## 4. Register the Service Worker
 
@@ -169,7 +169,7 @@ revalidation stream.
 
 ## Related
 
-- [`setupToapiWorker`](/tapi/worker/reference/setup-toapi-worker/)
-- [`handleToapiRequest`](/tapi/worker/reference/handle-toapi-request/)
-- [`listenForInvalidations`](/tapi/worker/reference/listen-for-invalidations/)
-- [`cleanup`](/tapi/worker/reference/cleanup/)
+- [`setupToapiWorker`](/toapi/worker/reference/setup-toapi-worker/)
+- [`handleToapiRequest`](/toapi/worker/reference/handle-toapi-request/)
+- [`listenForInvalidations`](/toapi/worker/reference/listen-for-invalidations/)
+- [`cleanup`](/toapi/worker/reference/cleanup/)

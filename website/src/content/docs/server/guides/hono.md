@@ -28,7 +28,7 @@ export const api = defineApi();
 
 ## 2. Integrate with Hono
 
-Mount the Toapi request handler onto a Hono application instance. Since [`createRequestHandler`](/tapi/server/reference/create-request-handler/) works with standard Web API `Request` and `Response` objects, it integrates seamlessly with Hono.
+Mount the Toapi request handler onto a Hono application instance. Since [`createRequestHandler`](/toapi/server/reference/create-request-handler/) works with standard Web API `Request` and `Response` objects, it integrates seamlessly with Hono.
 
 ```ts
 // src/index.ts
@@ -108,11 +108,11 @@ main();
 
 ### Context integration
 
-If you need to access Hono's `Context` (like environment variables in Cloudflare Workers) inside your Toapi handlers, you currently need to pass them via a custom storage mechanism (like `AsyncLocalStorage`) or by extending the request object before passing it to `handler`, since Toapi abstracts away the underlying framework's specific context object in favor of a standard [`TRequest`](/tapi/server/reference/t-request/).
+If you need to access Hono's `Context` (like environment variables in Cloudflare Workers) inside your Toapi handlers, you currently need to pass them via a custom storage mechanism (like `AsyncLocalStorage`) or by extending the request object before passing it to `handler`, since Toapi abstracts away the underlying framework's specific context object in favor of a standard [`TRequest`](/toapi/server/reference/t-request/).
 
 ## 6. Revalidation stream
 
-To enable tag-based revalidation across all cache layers, expose the invalidation stream. `defineApi` automatically creates a [`PubSub`](/tapi/server/reference/pub-sub/) instance, so no extra setup is needed for single-host deployments.
+To enable tag-based revalidation across all cache layers, expose the invalidation stream. `defineApi` automatically creates a [`PubSub`](/toapi/server/reference/pub-sub/) instance, so no extra setup is needed for single-host deployments.
 
 The catch-all handler already serves the stream at `/api/__tapi/invalidations`. If you prefer a dedicated route, add `/api/revalidate` to your Hono app:
 
@@ -143,4 +143,4 @@ export default app;
 
 The revalidation route is registered before the catch-all so it doesn't get swallowed by the Toapi handler.
 
-For setting up a service worker that connects to this endpoint, see the [`@toapi/worker`](/tapi/worker/) package. For details on how the cache layers interact, see [Caching Strategies](/tapi/server/reference/caching/).
+For setting up a service worker that connects to this endpoint, see the [`@toapi/worker`](/toapi/worker/) package. For details on how the cache layers interact, see [Caching Strategies](/toapi/server/reference/caching/).

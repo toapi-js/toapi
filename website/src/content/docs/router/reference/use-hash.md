@@ -61,6 +61,6 @@ function Tabs() {
 
 ## Related
 
-- [usePathname](/tapi/router/reference/use-pathname/) — access the current pathname
-- [useSearchParams](/tapi/router/reference/use-search-params/) — access search parameters
-- [useRouter](/tapi/router/reference/use-router/) — programmatic navigation
+- [usePathname](/toapi/router/reference/use-pathname/) — access the current pathname
+- [useSearchParams](/toapi/router/reference/use-search-params/) — access search parameters
+- [useRouter](/toapi/router/reference/use-router/) — programmatic navigation

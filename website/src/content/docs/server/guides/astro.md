@@ -109,7 +109,7 @@ Use the client in your `<script>` tags or within UI framework components (React,
 
 ### Server-side usage (frontmatter)
 
-When fetching data inside Astro component frontmatter (which runs on the server during build or SSR), pair [`createRequestHandler`](/tapi/server/reference/create-request-handler/) with `createFetchClient` to call handlers directly without an HTTP round-trip.
+When fetching data inside Astro component frontmatter (which runs on the server during build or SSR), pair [`createRequestHandler`](/toapi/server/reference/create-request-handler/) with `createFetchClient` to call handlers directly without an HTTP round-trip.
 
 First, set up a server client helper:
 
@@ -141,7 +141,7 @@ const data = await serverClient.hello.get();
 
 ## 6. Revalidation stream
 
-To enable tag-based revalidation across all cache layers, expose the invalidation stream. `defineApi` automatically creates a [`PubSub`](/tapi/server/reference/pub-sub/) instance, so no extra setup is needed for single-host deployments.
+To enable tag-based revalidation across all cache layers, expose the invalidation stream. `defineApi` automatically creates a [`PubSub`](/toapi/server/reference/pub-sub/) instance, so no extra setup is needed for single-host deployments.
 
 The catch-all handler from step 2 already serves the stream at `/api/__tapi/invalidations`. If you prefer a dedicated route, add one at `src/pages/api/revalidate.ts`:
 
@@ -158,4 +158,4 @@ export const GET: APIRoute = () => {
 };
 ```
 
-For setting up a service worker that connects to this endpoint, see the [`@toapi/worker`](/tapi/worker/) package. For details on how the cache layers interact, see [Caching Strategies](/tapi/server/reference/caching/).
+For setting up a service worker that connects to this endpoint, see the [`@toapi/worker`](/toapi/worker/) package. For details on how the cache layers interact, see [Caching Strategies](/toapi/server/reference/caching/).

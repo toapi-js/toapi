@@ -14,7 +14,7 @@ Inside the worker the two responsibilities also compose cleanly:
 
 - **VitePWA / Workbox** precaches your **static build output** (the app shell,
   JS, CSS, images) via the manifest it injects as `self.__WB_MANIFEST`.
-- **[`setupToapiWorker`](/tapi/worker/reference/setup-toapi-worker/)** handles your
+- **[`setupToapiWorker`](/toapi/worker/reference/setup-toapi-worker/)** handles your
   **Toapi API routes** — caching, offline fallback, and tag-based revalidation.
 
 Because `setupToapiWorker`'s `fetch` listener only responds to same-origin
@@ -121,11 +121,11 @@ recognizes `ServiceWorkerGlobalScope` and related globals:
   seconds, past a cache entry's `expiresAt` before it is deleted by the cleanup
   pass that runs on every worker startup. It defaults to 7 days.
 - Need to interleave your own `fetch` logic with Toapi's? Call
-  [`cleanup`](/tapi/worker/reference/cleanup/),
-  [`handleToapiRequest`](/tapi/worker/reference/handle-toapi-request/), and
-  [`listenForInvalidations`](/tapi/worker/reference/listen-for-invalidations/)
+  [`cleanup`](/toapi/worker/reference/cleanup/),
+  [`handleToapiRequest`](/toapi/worker/reference/handle-toapi-request/), and
+  [`listenForInvalidations`](/toapi/worker/reference/listen-for-invalidations/)
   directly instead of `setupToapiWorker`.
 
 For the full service-worker API, see the
-[`setupToapiWorker`](/tapi/worker/reference/setup-toapi-worker/) reference and the
-[`@toapi/worker`](/tapi/worker/) package.
+[`setupToapiWorker`](/toapi/worker/reference/setup-toapi-worker/) reference and the
+[`@toapi/worker`](/toapi/worker/) package.

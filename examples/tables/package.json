@@ -1,5 +1,5 @@
 {
-  "name": "@farbenmeer/tapi-example-tables",
+  "name": "@toapi-js/toapi-example-tables",
   "version": "0.2.6",
   "type": "module",
   "private": true,

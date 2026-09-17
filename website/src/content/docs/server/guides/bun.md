@@ -3,7 +3,7 @@ title: "Bun Setup"
 description: "Serve @toapi/server routes with Bun's native HTTP server — pass the Web-standard handler straight to Bun.serve."
 ---
 
-This guide explains how to integrate Toapi with [Bun](https://bun.sh/)'s native HTTP server, `Bun.serve`. Because [`createRequestHandler`](/tapi/server/reference/create-request-handler/) works with standard Web API `Request` and `Response` objects, it can be passed straight to `Bun.serve` as its `fetch` handler — no adapter required.
+This guide explains how to integrate Toapi with [Bun](https://bun.sh/)'s native HTTP server, `Bun.serve`. Because [`createRequestHandler`](/toapi/server/reference/create-request-handler/) works with standard Web API `Request` and `Response` objects, it can be passed straight to `Bun.serve` as its `fetch` handler — no adapter required.
 
 ## Installation
 
@@ -164,7 +164,7 @@ main();
 
 ## 6. Revalidation stream
 
-To enable tag-based revalidation across all cache layers, expose the invalidation stream. `defineApi` automatically creates a [`PubSub`](/tapi/server/reference/pub-sub/) instance, so no extra setup is needed for single-host deployments.
+To enable tag-based revalidation across all cache layers, expose the invalidation stream. `defineApi` automatically creates a [`PubSub`](/toapi/server/reference/pub-sub/) instance, so no extra setup is needed for single-host deployments.
 
 The catch-all handler already serves the stream at `/api/__tapi/invalidations`. If you prefer a dedicated path, register `/api/revalidate` **before** the catch-all `/api` branch, otherwise the Toapi handler will swallow it:
 
@@ -215,4 +215,4 @@ Bun.serve({
 });
 ```
 
-For setting up a service worker that connects to this endpoint, see the [`@toapi/worker`](/tapi/worker/) package. For details on how the cache layers interact, see [Caching Strategies](/tapi/server/reference/caching/).
+For setting up a service worker that connects to this endpoint, see the [`@toapi/worker`](/toapi/worker/) package. For details on how the cache layers interact, see [Caching Strategies](/toapi/server/reference/caching/).

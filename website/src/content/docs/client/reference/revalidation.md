@@ -3,7 +3,7 @@ title: "Revalidation & subscriptions"
 description: "How the client keeps GET data fresh: tag-based invalidation, imperative revalidate(), server-push, and the .revalidated promise."
 ---
 
-The client's cache is not a passive store — it actively keeps `GET` data fresh. There are four mechanisms, all built on the same tag index and [`Observable`](/tapi/client/reference/observable/) subscription protocol.
+The client's cache is not a passive store — it actively keeps `GET` data fresh. There are four mechanisms, all built on the same tag index and [`Observable`](/toapi/client/reference/observable/) subscription protocol.
 
 ## 1. Tag-based revalidation after mutations
 
@@ -48,7 +48,7 @@ If a request for that URL is already in flight, `revalidate` queues a follow-up 
 
 ## 3. Time-based revalidation
 
-When the server sends an `X-TAPI-Expires-At` header, the client schedules a background revalidation for that time (plus a small random jitter bounded by `maxOverdueTTL`, to avoid stampedes) — but only while the entry has active subscribers. Entries without subscribers are simply dropped after `minTTL`. Both `minTTL` and `maxOverdueTTL` are configurable via [`createFetchClient` options](/tapi/client/reference/create-fetch-client/#options).
+When the server sends an `X-TAPI-Expires-At` header, the client schedules a background revalidation for that time (plus a small random jitter bounded by `maxOverdueTTL`, to avoid stampedes) — but only while the entry has active subscribers. Entries without subscribers are simply dropped after `minTTL`. Both `minTTL` and `maxOverdueTTL` are configurable via [`createFetchClient` options](/toapi/client/reference/create-fetch-client/#options).
 
 ## 4. Server-pushed invalidation
 
@@ -87,10 +87,10 @@ const unsubscribe = result.subscribe((next) => {
 unsubscribe(); // stop listening; entry is cleared after minTTL
 ```
 
-See [Observable](/tapi/client/reference/observable/) for the subscription API in detail.
+See [Observable](/toapi/client/reference/observable/) for the subscription API in detail.
 
 ## Related
 
-- [createFetchClient](/tapi/client/reference/create-fetch-client/)
-- [Observable](/tapi/client/reference/observable/)
-- [HttpError](/tapi/client/reference/http-error/)
+- [createFetchClient](/toapi/client/reference/create-fetch-client/)
+- [Observable](/toapi/client/reference/observable/)
+- [HttpError](/toapi/client/reference/http-error/)

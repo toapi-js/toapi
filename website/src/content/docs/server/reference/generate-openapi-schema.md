@@ -3,10 +3,10 @@ title: "generateOpenAPISchema"
 description: "Generate an OpenAPI 3.1 document from your Toapi definition for documentation tools and cross-language SDKs."
 ---
 
-The `generateOpenAPISchema` function generates an OpenAPI 3.1 specification from your [`defineApi`](/tapi/server/reference/define-api/) definition. This is useful for generating documentation (like Swagger UI) or client SDKs for other languages.
+The `generateOpenAPISchema` function generates an OpenAPI 3.1 specification from your [`defineApi`](/toapi/server/reference/define-api/) definition. This is useful for generating documentation (like Swagger UI) or client SDKs for other languages.
 
 :::tip
-You usually do not need to call this by hand. Pass `oas: { title, version }` to [`defineApi`](/tapi/server/reference/define-api/) and [`createRequestHandler`](/tapi/server/reference/create-request-handler/) serves the generated document at `<basePath>/__tapi/openapi.json` automatically.
+You usually do not need to call this by hand. Pass `oas: { title, version }` to [`defineApi`](/toapi/server/reference/define-api/) and [`createRequestHandler`](/toapi/server/reference/create-request-handler/) serves the generated document at `<basePath>/__tapi/openapi.json` automatically.
 :::
 
 ## Usage
@@ -42,9 +42,9 @@ function generateOpenAPISchema(
 
 ### `apiDefinition`
 
-**Type**: [`ApiDefinition`](/tapi/server/reference/api-definition/)
+**Type**: [`ApiDefinition`](/toapi/server/reference/api-definition/)
 
-The API definition object returned by [`defineApi`](/tapi/server/reference/define-api/).
+The API definition object returned by [`defineApi`](/toapi/server/reference/define-api/).
 
 ### `options`
 
@@ -54,7 +54,7 @@ The API definition object returned by [`defineApi`](/tapi/server/reference/defin
 
 ## Schema mapping
 
-The function iterates through all routes in your API and maps the Zod schemas from your [`defineHandler`](/tapi/server/reference/define-handler/) calls to OpenAPI schema objects.
+The function iterates through all routes in your API and maps the Zod schemas from your [`defineHandler`](/toapi/server/reference/define-handler/) calls to OpenAPI schema objects.
 
 | Toapi schema | OpenAPI location |
 | --- | --- |
@@ -89,5 +89,5 @@ export const GET = defineHandler(
 
 ## Related
 
-- [`defineApi`](/tapi/server/reference/define-api/) — pass `oas` to serve the document automatically.
-- [`createRequestHandler`](/tapi/server/reference/create-request-handler/) — mounts the OpenAPI route.
+- [`defineApi`](/toapi/server/reference/define-api/) — pass `oas` to serve the document automatically.
+- [`createRequestHandler`](/toapi/server/reference/create-request-handler/) — mounts the OpenAPI route.

@@ -38,7 +38,7 @@ function Navigation() {
 
 ## Pathname Normalization
 
-The pathname is normalized by the [`Router`](/tapi/router/reference/router/) component:
+The pathname is normalized by the [`Router`](/toapi/router/reference/router/) component:
 
 - Trailing slashes are removed: `/users/` becomes `/users`
 - Root path remains `/`
@@ -150,8 +150,8 @@ function AnalyticsProvider({ children }) {
 
 1. **Use for UI state**: perfect for conditional rendering and styling based on the current path.
 2. **Memoize expensive computations**: use `useMemo` for complex path-based calculations.
-3. **Combine with other hooks**: often used together with [`useParams`](/tapi/router/reference/use-params/) and [`useSearchParams`](/tapi/router/reference/use-search-params/).
-4. **Avoid side effects**: don't use pathname changes to trigger navigation — use [`useRouter`](/tapi/router/reference/use-router/) instead.
+3. **Combine with other hooks**: often used together with [`useParams`](/toapi/router/reference/use-params/) and [`useSearchParams`](/toapi/router/reference/use-search-params/).
+4. **Avoid side effects**: don't use pathname changes to trigger navigation — use [`useRouter`](/toapi/router/reference/use-router/) instead.
 
 ## Common Anti-Patterns
 
@@ -178,7 +178,7 @@ const isActive = pathname === "/users";
 
 ## Related
 
-- [useRouter](/tapi/router/reference/use-router/) — programmatic navigation
-- [useParams](/tapi/router/reference/use-params/) — access route parameters
-- [useSearchParams](/tapi/router/reference/use-search-params/) — access search parameters
-- [useHash](/tapi/router/reference/use-hash/) — access the URL hash fragment
+- [useRouter](/toapi/router/reference/use-router/) — programmatic navigation
+- [useParams](/toapi/router/reference/use-params/) — access route parameters
+- [useSearchParams](/toapi/router/reference/use-search-params/) — access search parameters
+- [useHash](/toapi/router/reference/use-hash/) — access the URL hash fragment

@@ -24,19 +24,19 @@ npm install @toapi/worker
 ```
 
 The package targets the `WebWorker` type lib rather than the `DOM` lib. See the
-[service-worker guide](/tapi/worker/guides/service-worker/) for the `tsconfig.json`
+[service-worker guide](/toapi/worker/guides/service-worker/) for the `tsconfig.json`
 setup and the full build/register recipe.
 
 ## Public API
 
 | Export | Kind | Purpose |
 | --- | --- | --- |
-| [`setupToapiWorker`](/tapi/worker/reference/setup-toapi-worker/) | function | Set up the whole worker in one call: registers the listeners and opens the stream. |
-| [`handleToapiRequest`](/tapi/worker/reference/handle-toapi-request/) | function | Handle a single `fetch` event: serve from cache, network, or invalidate on mutation. |
-| [`listenForInvalidations`](/tapi/worker/reference/listen-for-invalidations/) | function | Open the server's revalidation stream and apply remote tag invalidations. |
-| [`cleanup`](/tapi/worker/reference/cleanup/) | function | Reconcile the cache and metadata stores; run once on worker startup. |
-| `SetupToapiWorkerOptions` | type | Options for [`setupToapiWorker`](/tapi/worker/reference/setup-toapi-worker/). |
-| `CleanupOptions` | type | Options for [`cleanup`](/tapi/worker/reference/cleanup/). |
+| [`setupToapiWorker`](/toapi/worker/reference/setup-toapi-worker/) | function | Set up the whole worker in one call: registers the listeners and opens the stream. |
+| [`handleToapiRequest`](/toapi/worker/reference/handle-toapi-request/) | function | Handle a single `fetch` event: serve from cache, network, or invalidate on mutation. |
+| [`listenForInvalidations`](/toapi/worker/reference/listen-for-invalidations/) | function | Open the server's revalidation stream and apply remote tag invalidations. |
+| [`cleanup`](/toapi/worker/reference/cleanup/) | function | Reconcile the cache and metadata stores; run once on worker startup. |
+| `SetupToapiWorkerOptions` | type | Options for [`setupToapiWorker`](/toapi/worker/reference/setup-toapi-worker/). |
+| `CleanupOptions` | type | Options for [`cleanup`](/toapi/worker/reference/cleanup/). |
 | `Logger` | type | Re-exported from `@toapi/common`; the optional logger accepted by `handleToapiRequest`, `listenForInvalidations`, and `setupToapiWorker`. |
 
 ## Minimal service worker
@@ -69,18 +69,18 @@ setupToapiWorker({
 under `basePath`, so everything else falls through to any other `fetch`
 listeners — that's how it composes with `vite-plugin-pwa`'s static-asset
 precaching. See the
-[vite-plugin service-worker guide](/tapi/vite-plugin/guides/service-worker/).
+[vite-plugin service-worker guide](/toapi/vite-plugin/guides/service-worker/).
 :::
 
 If you need to interleave Toapi with your own `fetch` logic, you can
-wire up [`cleanup`](/tapi/worker/reference/cleanup/),
-[`handleToapiRequest`](/tapi/worker/reference/handle-toapi-request/), and
-[`listenForInvalidations`](/tapi/worker/reference/listen-for-invalidations/) by
+wire up [`cleanup`](/toapi/worker/reference/cleanup/),
+[`handleToapiRequest`](/toapi/worker/reference/handle-toapi-request/), and
+[`listenForInvalidations`](/toapi/worker/reference/listen-for-invalidations/) by
 hand instead — see the
-[service-worker guide](/tapi/worker/guides/service-worker/).
+[service-worker guide](/toapi/worker/guides/service-worker/).
 
 ## Related
 
-- [Service worker setup guide](/tapi/worker/guides/service-worker/)
-- [`@toapi/cache`](/tapi/cache/) — the server-side tag-based cache that
+- [Service worker setup guide](/toapi/worker/guides/service-worker/)
+- [`@toapi/cache`](/toapi/cache/) — the server-side tag-based cache that
   produces the tags and expiry headers this worker reads.

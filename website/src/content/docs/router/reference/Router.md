@@ -71,7 +71,7 @@ const customHistory = {
 ### `useTransition` (optional)
 
 - **Type**: `boolean | ((scope: () => void) => void)`
-- **Description**: default `useTransition` behavior for this Router's own state updates (on `popstate`) and for `push`/`replace` calls that don't specify their own `useTransition` option. See [`Link`'s `useTransition` prop](/tapi/router/reference/link/) for the full description of each value.
+- **Description**: default `useTransition` behavior for this Router's own state updates (on `popstate`) and for `push`/`replace` calls that don't specify their own `useTransition` option. See [`Link`'s `useTransition` prop](/toapi/router/reference/link/) for the full description of each value.
 - **Default**: `undefined` (wraps updates in `startTransition`)
 
 ```tsx
@@ -151,7 +151,7 @@ function App() {
 
 ## Related
 
-- [Route](/tapi/router/reference/route/) — define route matching and rendering
-- [Link](/tapi/router/reference/link/) — navigate between routes
-- [useRouter](/tapi/router/reference/use-router/) — access navigation methods
-- [usePathname](/tapi/router/reference/use-pathname/) — access the current pathname
+- [Route](/toapi/router/reference/route/) — define route matching and rendering
+- [Link](/toapi/router/reference/link/) — navigate between routes
+- [useRouter](/toapi/router/reference/use-router/) — access navigation methods
+- [usePathname](/toapi/router/reference/use-pathname/) — access the current pathname

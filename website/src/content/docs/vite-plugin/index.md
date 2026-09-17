@@ -3,7 +3,7 @@ title: "@toapi/vite-plugin"
 description: "Bundle a Toapi API alongside your Vite frontend: served as middleware in dev/preview, and a deployable server bundle in production."
 ---
 
-`@toapi/vite-plugin` bundles a [Toapi](/tapi/server/) REST API alongside
+`@toapi/vite-plugin` bundles a [Toapi](/toapi/server/) REST API alongside
 your Vite frontend in a single project. In dev and preview modes the API is
 served as middleware on the same port as the frontend — no CORS configuration
 needed. For production, `vite build` emits a deployable server bundle.
@@ -64,10 +64,10 @@ single port.
 
 ## Guides
 
-- [Getting Started](/tapi/vite-plugin/guides/getting-started/) — set up the plugin
+- [Getting Started](/toapi/vite-plugin/guides/getting-started/) — set up the plugin
   and configure your API entry point.
-- [Service Worker](/tapi/vite-plugin/guides/service-worker/) — add offline support
+- [Service Worker](/toapi/vite-plugin/guides/service-worker/) — add offline support
   with `vite-plugin-pwa`.
-- [Deployment](/tapi/vite-plugin/guides/deployment/) — serve the production bundle
+- [Deployment](/toapi/vite-plugin/guides/deployment/) — serve the production bundle
   with `srvx`.
-- [Reference](/tapi/vite-plugin/reference/options/) — plugin options and build output.
+- [Reference](/toapi/vite-plugin/reference/options/) — plugin options and build output.
