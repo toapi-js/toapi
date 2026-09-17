@@ -1,5 +1,11 @@
 # @toapi/docs
 
+## 0.2.0
+
+### Minor Changes
+
+- 3f23ec3: update paths on toapi website
+
 ## 0.1.2
 
 ### Patch Changes
