@@ -5,7 +5,7 @@ description: "A cache abstraction with tag-based invalidation and multiple backe
 
 `@toapi/cache` is a cache library built around **tag-based invalidation**. Instead of expiring individual keys, you invalidate entire groups of cache entries by their tags — a pattern that maps naturally to how data actually changes in real applications.
 
-It is the reference cache implementation for the Toapi stack and is usually used to add caching to [`@toapi/server`](/tapi/server/).
+It is the reference cache implementation for the Toapi stack and is usually used to add caching to [`@toapi/server`](/toapi/server/).
 
 ## Installation
 
@@ -17,12 +17,12 @@ The Redis and Postgres backends need an extra peer dependency (`@redis/client` o
 
 ## Backends
 
-All backends implement the same [`Cache`](/tapi/cache/reference/cache/) interface, so you can swap between them without touching application code.
+All backends implement the same [`Cache`](/toapi/cache/reference/cache/) interface, so you can swap between them without touching application code.
 
-- **[`InMemoryCache`](/tapi/cache/reference/in-memory-cache/)** — SQLite in-memory database. Fast, zero I/O — ideal for development, testing, and single-process deployments.
-- **[`FilesystemCache`](/tapi/cache/reference/filesystem-cache/)** — SQLite file-based database. Survives process restarts, suitable for single-host production setups.
-- **[`RedisCache`](/tapi/cache/reference/redis-cache/)** — Redis-backed distributed cache with pub/sub support. The right choice for multi-host deployments.
-- **[`PostgresCache`](/tapi/cache/reference/postgres-cache/)** — PostgreSQL-backed distributed cache using `LISTEN`/`NOTIFY`. For multi-host deployments that already run Postgres and would rather not add Redis.
+- **[`InMemoryCache`](/toapi/cache/reference/in-memory-cache/)** — SQLite in-memory database. Fast, zero I/O — ideal for development, testing, and single-process deployments.
+- **[`FilesystemCache`](/toapi/cache/reference/filesystem-cache/)** — SQLite file-based database. Survives process restarts, suitable for single-host production setups.
+- **[`RedisCache`](/toapi/cache/reference/redis-cache/)** — Redis-backed distributed cache with pub/sub support. The right choice for multi-host deployments.
+- **[`PostgresCache`](/toapi/cache/reference/postgres-cache/)** — PostgreSQL-backed distributed cache using `LISTEN`/`NOTIFY`. For multi-host deployments that already run Postgres and would rather not add Redis.
 
 ## Quick Start
 
@@ -61,12 +61,12 @@ const cache = new InMemoryCache();
 const handleRequest = createRequestHandler(api, { cache });
 ```
 
-See [Caching](/tapi/server/reference/caching/) for the full picture.
+See [Caching](/toapi/server/reference/caching/) for the full picture.
 
 ## Reference
 
-- [Cache Interface](/tapi/cache/reference/cache/) — the shared interface all backends implement.
-- [InMemoryCache](/tapi/cache/reference/in-memory-cache/) — SQLite in-memory backend.
-- [FilesystemCache](/tapi/cache/reference/filesystem-cache/) — SQLite file-based backend.
-- [RedisCache](/tapi/cache/reference/redis-cache/) — Redis-backed distributed backend.
-- [PostgresCache](/tapi/cache/reference/postgres-cache/) — PostgreSQL-backed distributed backend.
+- [Cache Interface](/toapi/cache/reference/cache/) — the shared interface all backends implement.
+- [InMemoryCache](/toapi/cache/reference/in-memory-cache/) — SQLite in-memory backend.
+- [FilesystemCache](/toapi/cache/reference/filesystem-cache/) — SQLite file-based backend.
+- [RedisCache](/toapi/cache/reference/redis-cache/) — Redis-backed distributed backend.
+- [PostgresCache](/toapi/cache/reference/postgres-cache/) — PostgreSQL-backed distributed backend.

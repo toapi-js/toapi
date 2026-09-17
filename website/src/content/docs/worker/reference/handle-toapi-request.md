@@ -12,7 +12,7 @@ affected tags.
 This function was previously called `handleTapiRequest`. That name is still
 exported as a deprecated alias for the same function and will be removed in a
 future major version — prefer `handleToapiRequest`. Most setups don't call it
-directly at all; use [`setupToapiWorker`](/tapi/worker/reference/setup-toapi-worker/).
+directly at all; use [`setupToapiWorker`](/toapi/worker/reference/setup-toapi-worker/).
 :::
 
 ## Signature
@@ -111,7 +111,7 @@ interface Logger {
 one falls back independently to the matching `console` method, so you can
 override just the ones you care about. `handleToapiRequest` only uses `error`;
 `warn` and `info` are used by
-[`listenForInvalidations`](/tapi/worker/reference/listen-for-invalidations/) for
+[`listenForInvalidations`](/toapi/worker/reference/listen-for-invalidations/) for
 connection retries and stream progress.
 
 Provide one to route worker errors into your own reporting rather than
@@ -129,6 +129,6 @@ handleToapiRequest(event.request, { logger });
 
 ## Related
 
-- [`listenForInvalidations`](/tapi/worker/reference/listen-for-invalidations/)
-- [`cleanup`](/tapi/worker/reference/cleanup/)
-- [Service worker setup guide](/tapi/worker/guides/service-worker/)
+- [`listenForInvalidations`](/toapi/worker/reference/listen-for-invalidations/)
+- [`cleanup`](/toapi/worker/reference/cleanup/)
+- [Service worker setup guide](/toapi/worker/guides/service-worker/)

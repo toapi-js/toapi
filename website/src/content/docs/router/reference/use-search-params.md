@@ -7,7 +7,7 @@ The `useSearchParams` hook provides access to the current URL search parameters 
 
 ## Usage
 
-It's really just `URLSearchParams`, but the mutating methods return a **new** instance instead of modifying the current one. This makes it safe to derive an updated query string for a [`Link`](/tapi/router/reference/link/) or [`useRouter`](/tapi/router/reference/use-router/) call without accidentally mutating shared state.
+It's really just `URLSearchParams`, but the mutating methods return a **new** instance instead of modifying the current one. This makes it safe to derive an updated query string for a [`Link`](/toapi/router/reference/link/) or [`useRouter`](/toapi/router/reference/use-router/) call without accidentally mutating shared state.
 
 To change one search parameter while preserving the rest:
 
@@ -75,6 +75,6 @@ searchParams.search; // "?category=electronics&sort=price" — or "" when empty
 
 ## Related
 
-- [useRouter](/tapi/router/reference/use-router/) — programmatic navigation
-- [usePathname](/tapi/router/reference/use-pathname/) — access the current pathname
-- [Link](/tapi/router/reference/link/) — declarative navigation
+- [useRouter](/toapi/router/reference/use-router/) — programmatic navigation
+- [usePathname](/toapi/router/reference/use-pathname/) — access the current pathname
+- [Link](/toapi/router/reference/link/) — declarative navigation

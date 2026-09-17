@@ -48,7 +48,7 @@ An object defining the input validation, authorization logic, and response shape
 | `params` | `Record<string, ZodType>` | Optional. A map of Zod schemas validating path parameters (e.g. `/users/:id`). |
 | `query` | `Record<string, ZodType>` | Optional. A map of Zod schemas validating query-string parameters. |
 | `body` | `ZodType` | Optional. Zod schema validating the JSON request body, parsed and validated lazily by `req.data()`. |
-| `response` | `ZodType` | Optional. Zod schema describing the success response. Validated at runtime after the handler returns, and used to describe the `200` response in the generated [OpenAPI document](/tapi/server/reference/generate-openapi-schema/). |
+| `response` | `ZodType` | Optional. Zod schema describing the success response. Validated at runtime after the handler returns, and used to describe the `200` response in the generated [OpenAPI document](/toapi/server/reference/generate-openapi-schema/). |
 
 :::note
 `params` and `query` are supplied as **maps of Zod schemas** (e.g. `{ id: z.string() }`), not a single `z.object({...})`. Toapi composes them into an object schema internally.
@@ -58,8 +58,8 @@ An object defining the input validation, authorization logic, and response shape
 
 The implementation function that receives the validated request and returns a response.
 
-- **Argument**: `req` — a [`TRequest`](/tapi/server/reference/t-request/) object with typed, validated accessors.
-- **Returns**: a promise resolving to a [`TResponse`](/tapi/server/reference/t-response/).
+- **Argument**: `req` — a [`TRequest`](/toapi/server/reference/t-request/) object with typed, validated accessors.
+- **Returns**: a promise resolving to a [`TResponse`](/toapi/server/reference/t-response/).
 
 ## Examples
 
@@ -150,12 +150,12 @@ export const POST = defineHandler(
 ```
 
 :::tip
-Reading `req.auth()` inside a `GET` handler marks the response as user-specific, so it will not be stored in the shared server cache. See [`createRequestHandler`](/tapi/server/reference/create-request-handler/#request-lifecycle) and [Caching Strategies](/tapi/server/reference/caching/).
+Reading `req.auth()` inside a `GET` handler marks the response as user-specific, so it will not be stored in the shared server cache. See [`createRequestHandler`](/toapi/server/reference/create-request-handler/#request-lifecycle) and [Caching Strategies](/toapi/server/reference/caching/).
 :::
 
 ## Related
 
-- [`TRequest`](/tapi/server/reference/t-request/) — the request object passed to your handler.
-- [`TResponse`](/tapi/server/reference/t-response/) — the response helper you return.
-- [`HttpError`](/tapi/server/reference/http-error/) — throw typed error responses from `authorize` or the handler.
-- [`defineApi`](/tapi/server/reference/define-api/) — register the handler under a route path.
+- [`TRequest`](/toapi/server/reference/t-request/) — the request object passed to your handler.
+- [`TResponse`](/toapi/server/reference/t-response/) — the response helper you return.
+- [`HttpError`](/toapi/server/reference/http-error/) — throw typed error responses from `authorize` or the handler.
+- [`defineApi`](/toapi/server/reference/define-api/) — register the handler under a route path.

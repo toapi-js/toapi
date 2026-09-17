@@ -24,7 +24,7 @@ function listenForInvalidations(options: {
 - **`timeout`** — how long in milliseconds to wait before reconnecting after the
   stream fails. Each reconnect multiplies it by 1.5, so a backend that stays
   down is polled less and less often. Defaults to `5000`.
-- **`logger`** — an optional [`Logger`](/tapi/worker/reference/handle-toapi-request/#logger).
+- **`logger`** — an optional [`Logger`](/toapi/worker/reference/handle-toapi-request/#logger).
   Its `error`, `warn`, and `info` methods report a fatal stream failure, failed
   connection attempts, and connection/invalidation progress respectively. Each
   method that you leave out falls back to the matching `console` method.
@@ -71,7 +71,7 @@ offline) nothing stale is served without first checking the network.
 Expiring on connect means the first read of each cached resource after the
 worker (re)connects will revalidate against the network. Entries are not
 deleted — if the network is unavailable, the expired entry is still served by
-[`handleToapiRequest`](/tapi/worker/reference/handle-toapi-request/).
+[`handleToapiRequest`](/toapi/worker/reference/handle-toapi-request/).
 :::
 
 ### Streaming invalidations
@@ -105,6 +105,6 @@ unless you are building a custom client integration.
 
 ## Related
 
-- [`handleToapiRequest`](/tapi/worker/reference/handle-toapi-request/)
-- [`cleanup`](/tapi/worker/reference/cleanup/)
-- [Service worker setup guide](/tapi/worker/guides/service-worker/)
+- [`handleToapiRequest`](/toapi/worker/reference/handle-toapi-request/)
+- [`cleanup`](/toapi/worker/reference/cleanup/)
+- [Service worker setup guide](/toapi/worker/guides/service-worker/)

@@ -29,7 +29,7 @@ Here "refresh" means the client _immediately_ requests a fresh version of the re
 
 ## Server-side cache
 
-Toapi does not cache data on the server by default. Enable caching by passing a `cache` to [`defineApi`](/tapi/server/reference/define-api/):
+Toapi does not cache data on the server by default. Enable caching by passing a `cache` to [`defineApi`](/toapi/server/reference/define-api/):
 
 ```ts
 import { defineApi } from "@toapi/server";
@@ -38,9 +38,9 @@ import { InMemoryCache } from "@toapi/cache/in-memory-cache";
 export const api = defineApi({ cache: new InMemoryCache() }).route(/* ... */);
 ```
 
-For reference cache implementations, see the [`@toapi/cache`](/tapi/cache/) package.
+For reference cache implementations, see the [`@toapi/cache`](/toapi/cache/) package.
 
-Toapi includes a built-in pub/sub system to distribute invalidated tags to all connected clients via long-polling connections. By default, `defineApi` automatically creates a [`PubSub`](/tapi/server/reference/pub-sub/) instance — no extra setup is needed for single-host deployments. To use a custom implementation (e.g. Redis for multi-host), pass it explicitly:
+Toapi includes a built-in pub/sub system to distribute invalidated tags to all connected clients via long-polling connections. By default, `defineApi` automatically creates a [`PubSub`](/toapi/server/reference/pub-sub/) instance — no extra setup is needed for single-host deployments. To use a custom implementation (e.g. Redis for multi-host), pass it explicitly:
 
 ```ts
 import { defineApi, PubSub } from "@toapi/server";
@@ -48,7 +48,7 @@ import { defineApi, PubSub } from "@toapi/server";
 export const api = defineApi({ cache: new PubSub() }).route(/* ... */);
 ```
 
-When you serve your API with [`createRequestHandler`](/tapi/server/reference/create-request-handler/), the long-polling endpoint is mounted automatically at `<basePath>/__tapi/invalidations`. If your framework handles that path outside the Toapi handler, wire it up yourself with [`streamRevalidatedTags`](/tapi/server/reference/stream-revalidated-tags/):
+When you serve your API with [`createRequestHandler`](/toapi/server/reference/create-request-handler/), the long-polling endpoint is mounted automatically at `<basePath>/__tapi/invalidations`. If your framework handles that path outside the Toapi handler, wire it up yourself with [`streamRevalidatedTags`](/toapi/server/reference/stream-revalidated-tags/):
 
 ```ts
 import { streamRevalidatedTags } from "@toapi/server";
@@ -58,7 +58,7 @@ const GET = () => streamRevalidatedTags({ cache: api.cache });
 ```
 
 :::caution
-The default `PubSub` implementation only works on a single host. To run Toapi across multiple hosts, use a shared cache such as `RedisCache` from [`@toapi/cache`](/tapi/cache/).
+The default `PubSub` implementation only works on a single host. To run Toapi across multiple hosts, use a shared cache such as `RedisCache` from [`@toapi/cache`](/toapi/cache/).
 :::
 
 ## Service worker cache
@@ -86,7 +86,7 @@ import { listenForInvalidations } from "@toapi/worker";
 listenForInvalidations({ url: process.env.INVALIDATION_ROUTE });
 ```
 
-Make sure `process.env.INVALIDATION_ROUTE` points to the route served by [`streamRevalidatedTags`](/tapi/server/reference/stream-revalidated-tags/) (mounted at `<basePath>/__tapi/invalidations` by default). When listening for invalidations, the worker marks all of its cached entries as expired and notifies its clients to reload them as soon as it connects to the invalidation stream.
+Make sure `process.env.INVALIDATION_ROUTE` points to the route served by [`streamRevalidatedTags`](/toapi/server/reference/stream-revalidated-tags/) (mounted at `<basePath>/__tapi/invalidations` by default). When listening for invalidations, the worker marks all of its cached entries as expired and notifies its clients to reload them as soon as it connects to the invalidation stream.
 
 To bound long-term cache growth, call `cleanup({ maximumStaleAge })` at the top level of the service worker, so it runs on every worker startup. It deletes cache entries whose `expiresAt` is older than `maximumStaleAge` seconds, removes cache entries that no longer have a meta record, and rebuilds the tags index from the surviving meta records:
 
@@ -96,7 +96,7 @@ import { cleanup } from "@toapi/worker";
 cleanup({ maximumStaleAge: 60 * 60 * 24 * 7 }).catch(console.error);
 ```
 
-See the [`@toapi/worker`](/tapi/worker/) package for the full service-worker toolkit.
+See the [`@toapi/worker`](/toapi/worker/) package for the full service-worker toolkit.
 
 ## Client cache
 
@@ -144,8 +144,8 @@ The client only caches entries while they have active subscriptions. When the la
 
 ## Related
 
-- [`TResponse`](/tapi/server/reference/t-response/) — attach `cache.tags` and `cache.ttl` to responses.
-- [`streamRevalidatedTags`](/tapi/server/reference/stream-revalidated-tags/) — the invalidation stream endpoint.
-- [`PubSub` and the `Cache` interface](/tapi/server/reference/pub-sub/) — the pub/sub contract.
-- [`@toapi/cache`](/tapi/cache/) — reference server-side cache implementations.
-- [`@toapi/worker`](/tapi/worker/) — service-worker caching and offline support.
+- [`TResponse`](/toapi/server/reference/t-response/) — attach `cache.tags` and `cache.ttl` to responses.
+- [`streamRevalidatedTags`](/toapi/server/reference/stream-revalidated-tags/) — the invalidation stream endpoint.
+- [`PubSub` and the `Cache` interface](/toapi/server/reference/pub-sub/) — the pub/sub contract.
+- [`@toapi/cache`](/toapi/cache/) — reference server-side cache implementations.
+- [`@toapi/worker`](/toapi/worker/) — service-worker caching and offline support.

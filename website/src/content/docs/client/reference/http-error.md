@@ -3,7 +3,7 @@ title: "HttpError"
 description: "The error thrown by the client for non-2xx responses, carrying the HTTP status and any structured error payload."
 ---
 
-`HttpError` is the error type the client throws (rejects with) whenever a request fails with a non-`2xx` status. It is re-exported from `@toapi/client` for convenience, but the class itself is defined in [`@toapi/common`](/tapi/common/) and is the same class the server throws — so you can `instanceof`-check it consistently on both sides.
+`HttpError` is the error type the client throws (rejects with) whenever a request fails with a non-`2xx` status. It is re-exported from `@toapi/client` for convenience, but the class itself is defined in [`@toapi/common`](/toapi/common/) and is the same class the server throws — so you can `instanceof`-check it consistently on both sides.
 
 ```ts
 import { HttpError } from "@toapi/client";
@@ -53,10 +53,10 @@ try {
 ```
 
 :::tip
-Errors from failed background revalidations are not thrown to your `await` — the client keeps serving the last good value and reports the error through the configured [`Logger`](/tapi/client/reference/create-fetch-client/#logger) instead. Only the request you directly await (or the promise passed to a subscriber) rejects with `HttpError`.
+Errors from failed background revalidations are not thrown to your `await` — the client keeps serving the last good value and reports the error through the configured [`Logger`](/toapi/client/reference/create-fetch-client/#logger) instead. Only the request you directly await (or the promise passed to a subscriber) rejects with `HttpError`.
 :::
 
 ## Related
 
-- [createFetchClient](/tapi/client/reference/create-fetch-client/)
-- [Revalidation & subscriptions](/tapi/client/reference/revalidation/)
+- [createFetchClient](/toapi/client/reference/create-fetch-client/)
+- [Revalidation & subscriptions](/toapi/client/reference/revalidation/)

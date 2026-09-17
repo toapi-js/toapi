@@ -5,9 +5,9 @@ description: "Wire up the whole Toapi service worker — cleanup, request handli
 
 `setupToapiWorker` is the one-call way to set up a Toapi service worker. It
 registers the `fetch` listener, runs a cleanup pass, and opens the revalidation
-stream, so you don't have to wire up [`cleanup`](/tapi/worker/reference/cleanup/),
-[`handleToapiRequest`](/tapi/worker/reference/handle-toapi-request/), and
-[`listenForInvalidations`](/tapi/worker/reference/listen-for-invalidations/)
+stream, so you don't have to wire up [`cleanup`](/toapi/worker/reference/cleanup/),
+[`handleToapiRequest`](/toapi/worker/reference/handle-toapi-request/), and
+[`listenForInvalidations`](/toapi/worker/reference/listen-for-invalidations/)
 yourself.
 
 ## Signature
@@ -28,17 +28,17 @@ interface SetupToapiWorkerOptions {
 ```
 
 - **`basePath`** — same-origin requests whose pathname starts with this prefix
-  are routed through [`handleToapiRequest`](/tapi/worker/reference/handle-toapi-request/).
+  are routed through [`handleToapiRequest`](/toapi/worker/reference/handle-toapi-request/).
   The `${basePath}/__tapi` control endpoints (the invalidation stream, the
   OpenAPI document) are always excluded. Defaults to `"/api"`.
 - **`invalidationsUrl`** — the URL of the server's revalidation stream. Defaults
   to `${basePath}/__tapi/invalidations`.
 - **`maximumStaleAge`** — how many seconds an entry may remain past its
-  `expiresAt` before [`cleanup`](/tapi/worker/reference/cleanup/) drops it.
+  `expiresAt` before [`cleanup`](/toapi/worker/reference/cleanup/) drops it.
   Cleanup runs once each time the worker starts up. Defaults to 7 days.
-- **`logger`** — an optional [`Logger`](/tapi/worker/reference/handle-toapi-request/#logger),
-  passed on to [`handleToapiRequest`](/tapi/worker/reference/handle-toapi-request/)
-  and [`listenForInvalidations`](/tapi/worker/reference/listen-for-invalidations/).
+- **`logger`** — an optional [`Logger`](/toapi/worker/reference/handle-toapi-request/#logger),
+  passed on to [`handleToapiRequest`](/toapi/worker/reference/handle-toapi-request/)
+  and [`listenForInvalidations`](/toapi/worker/reference/listen-for-invalidations/).
   Any method you leave out falls back to the matching `console` method.
 
 ## Usage
@@ -68,7 +68,7 @@ same-origin requests under `basePath`. Every other request falls through to any
 other `fetch` listeners you (or another plugin) have registered. That is what
 makes it compose with `vite-plugin-pwa`'s static-asset precaching: Toapi handles
 the API routes, VitePWA/Workbox handles the app shell and static files. See the
-[vite-plugin service-worker guide](/tapi/vite-plugin/guides/service-worker/) for
+[vite-plugin service-worker guide](/toapi/vite-plugin/guides/service-worker/) for
 the full recipe.
 
 ## Equivalent manual setup
@@ -106,7 +106,7 @@ own `fetch` logic or cleanup scheduling; otherwise prefer `setupToapiWorker`.
 
 ## Related
 
-- [`handleToapiRequest`](/tapi/worker/reference/handle-toapi-request/)
-- [`listenForInvalidations`](/tapi/worker/reference/listen-for-invalidations/)
-- [`cleanup`](/tapi/worker/reference/cleanup/)
-- [Service worker setup guide](/tapi/worker/guides/service-worker/)
+- [`handleToapiRequest`](/toapi/worker/reference/handle-toapi-request/)
+- [`listenForInvalidations`](/toapi/worker/reference/listen-for-invalidations/)
+- [`cleanup`](/toapi/worker/reference/cleanup/)
+- [Service worker setup guide](/toapi/worker/guides/service-worker/)

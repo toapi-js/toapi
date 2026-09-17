@@ -60,9 +60,9 @@ If a newer value arrives between the moment `.get()` returns the observable and 
 
 ## Relationship to `@toapi/react`
 
-[`@toapi/react`](/tapi/react/) wraps this `subscribe`/unsubscribe protocol in React hooks so components re-render automatically on cache changes. `Observable` is the underlying primitive; use it directly when integrating with other frameworks or state stores.
+[`@toapi/react`](/toapi/react/) wraps this `subscribe`/unsubscribe protocol in React hooks so components re-render automatically on cache changes. `Observable` is the underlying primitive; use it directly when integrating with other frameworks or state stores.
 
 ## Related
 
-- [createFetchClient](/tapi/client/reference/create-fetch-client/)
-- [Revalidation & subscriptions](/tapi/client/reference/revalidation/)
+- [createFetchClient](/toapi/client/reference/create-fetch-client/)
+- [Revalidation & subscriptions](/toapi/client/reference/revalidation/)

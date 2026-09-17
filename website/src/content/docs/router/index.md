@@ -57,22 +57,22 @@ function App() {
 
 | Component | Description |
 |---|---|
-| [`Router`](/tapi/router/reference/router/) | Root provider component that manages location state and navigation. |
-| [`Route`](/tapi/router/reference/route/) | Conditionally renders content based on the current pathname. |
-| [`Link`](/tapi/router/reference/link/) | Client-side navigation rendered as an anchor element. |
-| [`Switch`](/tapi/router/reference/switch/) | Renders only the first matching `Route` — useful for fallbacks and 404s. |
+| [`Router`](/toapi/router/reference/router/) | Root provider component that manages location state and navigation. |
+| [`Route`](/toapi/router/reference/route/) | Conditionally renders content based on the current pathname. |
+| [`Link`](/toapi/router/reference/link/) | Client-side navigation rendered as an anchor element. |
+| [`Switch`](/toapi/router/reference/switch/) | Renders only the first matching `Route` — useful for fallbacks and 404s. |
 
 ## Hooks
 
 | Hook | Description |
 |---|---|
-| [`useRouter()`](/tapi/router/reference/use-router/) | Programmatic navigation via `.push()` and `.replace()`. |
-| [`usePathname()`](/tapi/router/reference/use-pathname/) | Current pathname string. |
-| [`useParams()`](/tapi/router/reference/use-params/) | Dynamic route parameters from the current segment. |
-| [`useSearchParams()`](/tapi/router/reference/use-search-params/) | Immutable search parameter access and updates. |
-| [`useHash()`](/tapi/router/reference/use-hash/) | Current URL hash fragment. |
+| [`useRouter()`](/toapi/router/reference/use-router/) | Programmatic navigation via `.push()` and `.replace()`. |
+| [`usePathname()`](/toapi/router/reference/use-pathname/) | Current pathname string. |
+| [`useParams()`](/toapi/router/reference/use-params/) | Dynamic route parameters from the current segment. |
+| [`useSearchParams()`](/toapi/router/reference/use-search-params/) | Immutable search parameter access and updates. |
+| [`useHash()`](/toapi/router/reference/use-hash/) | Current URL hash fragment. |
 
 ## Guides
 
-- [Setup](/tapi/router/guides/setup/) — install the package and set up your first routes.
-- [Testing](/tapi/router/guides/testing/) — test components and routes deterministically.
+- [Setup](/toapi/router/guides/setup/) — install the package and set up your first routes.
+- [Testing](/toapi/router/guides/testing/) — test components and routes deterministically.

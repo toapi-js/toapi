@@ -5,7 +5,7 @@ description: "A specialized error type for returning specific HTTP status codes 
 
 The `HttpError` class is a specialized error type used to represent HTTP error responses. Throwing this error within your handlers allows you to return specific HTTP status codes and optional additional data to the client.
 
-It is defined in `@toapi/common` and re-exported from [`@toapi/server`](/tapi/server/) and [`@toapi/client`](/tapi/client/), so you can import it from whichever package you are already using.
+It is defined in `@toapi/common` and re-exported from [`@toapi/server`](/toapi/server/) and [`@toapi/client`](/toapi/client/), so you can import it from whichever package you are already using.
 
 ## Usage
 

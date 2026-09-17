@@ -2,6 +2,8 @@
 
 React-Binding for [Toapi](https://www.npmjs.com/package/@toapi/client)
 
+📚 [Docs](https://toapi-js.github.io/toapi/react/)
+
 ## Installation
 ```bash
 npm install @toapi/react

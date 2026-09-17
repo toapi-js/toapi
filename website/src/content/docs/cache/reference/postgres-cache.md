@@ -3,7 +3,7 @@ title: "PostgresCache"
 description: "PostgreSQL-backed distributed Cache for @toapi/cache using LISTEN/NOTIFY invalidation."
 ---
 
-`PostgresCache` is a [`Cache`](/tapi/cache/reference/cache/) implementation backed by PostgreSQL. It supports distributed cache invalidation via Postgres `LISTEN`/`NOTIFY`, making it suitable for multi-host deployments that already run Postgres and would rather not add Redis.
+`PostgresCache` is a [`Cache`](/toapi/cache/reference/cache/) implementation backed by PostgreSQL. It supports distributed cache invalidation via Postgres `LISTEN`/`NOTIFY`, making it suitable for multi-host deployments that already run Postgres and would rather not add Redis.
 
 ```ts
 import { PostgresCache } from "@toapi/cache/postgres-cache";
@@ -89,7 +89,7 @@ unsubscribe();
 
 ### Garbage Collection
 
-A background timer periodically deletes expired entries. The interval adapts between 5 seconds and 5 minutes based on how many rows each sweep removes, matching the [`InMemoryCache`](/tapi/cache/reference/in-memory-cache/) and [`FilesystemCache`](/tapi/cache/reference/filesystem-cache/) behaviour.
+A background timer periodically deletes expired entries. The interval adapts between 5 seconds and 5 minutes based on how many rows each sweep removes, matching the [`InMemoryCache`](/toapi/cache/reference/in-memory-cache/) and [`FilesystemCache`](/toapi/cache/reference/filesystem-cache/) behaviour.
 
 ### Shutdown
 
@@ -103,4 +103,4 @@ await pool.end();
 ## When to Use
 
 - Multi-host deployments where cache invalidation needs to propagate across processes and you already run Postgres.
-- When you need the Toapi [Caching](/tapi/server/reference/caching/) pub/sub system to work across multiple servers without introducing Redis.
+- When you need the Toapi [Caching](/toapi/server/reference/caching/) pub/sub system to work across multiple servers without introducing Redis.

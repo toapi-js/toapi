@@ -34,7 +34,7 @@ console.log(user.id);
 ```
 
 :::note
-Calling `req.auth()` inside a `GET`/`HEAD` handler marks the response as user-specific, so the [request handler](/tapi/server/reference/create-request-handler/#request-lifecycle) will **not** store it in the shared server cache. Only read auth in handlers whose output genuinely depends on the current user.
+Calling `req.auth()` inside a `GET`/`HEAD` handler marks the response as user-specific, so the [request handler](/toapi/server/reference/create-request-handler/#request-lifecycle) will **not** store it in the shared server cache. Only read auth in handlers whose output genuinely depends on the current user.
 :::
 
 ### `params()`
@@ -54,7 +54,7 @@ const { id } = req.params();
 Returns the validated query-string parameters.
 
 - **Returns**: `Query` object
-- Access parsed and validated URL search parameters, typed according to the `query` schema provided in [`defineHandler`](/tapi/server/reference/define-handler/). Repeated keys are collected into arrays.
+- Access parsed and validated URL search parameters, typed according to the `query` schema provided in [`defineHandler`](/toapi/server/reference/define-handler/). Repeated keys are collected into arrays.
 
 ```ts
 // URL: /search?q=toapi&page=1
@@ -113,7 +113,7 @@ const userAgent = req.headers.get("User-Agent");
 
 ## CookieStore
 
-`req.cookies()` returns a `CookieStore` (also exported from `@toapi/server`). Use `get(name)` to read a request cookie; queued writes can be flushed onto a response via the `cookies` field of [`TResponseInit`](/tapi/server/reference/t-response/#interface).
+`req.cookies()` returns a `CookieStore` (also exported from `@toapi/server`). Use `get(name)` to read a request cookie; queued writes can be flushed onto a response via the `cookies` field of [`TResponseInit`](/toapi/server/reference/t-response/#interface).
 
 ## Usage example
 
@@ -141,5 +141,5 @@ export const POST = defineHandler(
 
 ## Related
 
-- [`defineHandler`](/tapi/server/reference/define-handler/) — where the schemas that type this request are declared.
-- [`TResponse`](/tapi/server/reference/t-response/) — the response counterpart.
+- [`defineHandler`](/toapi/server/reference/define-handler/) — where the schemas that type this request are declared.
+- [`TResponse`](/toapi/server/reference/t-response/) — the response counterpart.

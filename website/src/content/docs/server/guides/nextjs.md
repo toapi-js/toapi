@@ -112,12 +112,12 @@ export default function ClientPage() {
 ```
 
 :::tip
-For a first-class React integration with hooks and Suspense, see [`@toapi/react`](/tapi/react/).
+For a first-class React integration with hooks and Suspense, see [`@toapi/react`](/toapi/react/).
 :::
 
 ### Server components
 
-For Server Components, skip the HTTP overhead by pairing [`createRequestHandler`](/tapi/server/reference/create-request-handler/) with `createFetchClient`. This calls your handlers directly.
+For Server Components, skip the HTTP overhead by pairing [`createRequestHandler`](/toapi/server/reference/create-request-handler/) with `createFetchClient`. This calls your handlers directly.
 
 Create a server-only client instance:
 
@@ -149,7 +149,7 @@ export default async function ServerPage() {
 
 ## 6. Revalidation stream
 
-To enable tag-based revalidation across all cache layers, expose the invalidation stream. `defineApi` automatically creates a [`PubSub`](/tapi/server/reference/pub-sub/) instance, so no extra setup is needed for single-host deployments.
+To enable tag-based revalidation across all cache layers, expose the invalidation stream. `defineApi` automatically creates a [`PubSub`](/toapi/server/reference/pub-sub/) instance, so no extra setup is needed for single-host deployments.
 
 The catch-all handler already serves the stream at `/api/__tapi/invalidations`. If you prefer a dedicated route, add one at `src/app/api/revalidate/route.ts`:
 
@@ -165,4 +165,4 @@ export const GET = () => {
 };
 ```
 
-For setting up a service worker that connects to this endpoint, see the [`@toapi/worker`](/tapi/worker/) package. For details on how the cache layers interact, see [Caching Strategies](/tapi/server/reference/caching/).
+For setting up a service worker that connects to this endpoint, see the [`@toapi/worker`](/toapi/worker/) package. For details on how the cache layers interact, see [Caching Strategies](/toapi/server/reference/caching/).

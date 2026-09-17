@@ -132,6 +132,6 @@ The type parameter must extend `Record<string, string | string[]>`. It is a comp
 
 ## Related
 
-- [Route](/tapi/router/reference/route/) — define route matching and parameters
-- [usePathname](/tapi/router/reference/use-pathname/) — access the current pathname
-- [useSearchParams](/tapi/router/reference/use-search-params/) — access search parameters
+- [Route](/toapi/router/reference/route/) — define route matching and parameters
+- [usePathname](/toapi/router/reference/use-pathname/) — access the current pathname
+- [useSearchParams](/toapi/router/reference/use-search-params/) — access search parameters

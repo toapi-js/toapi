@@ -167,7 +167,7 @@ Each Route component provides context to its children:
 - **params**: object containing captured path parameters
 - **matchedPathname**: the portion of the pathname that was matched
 
-Access the parameters using the [`useParams()`](/tapi/router/reference/use-params/) hook:
+Access the parameters using the [`useParams()`](/toapi/router/reference/use-params/) hook:
 
 ```tsx
 <Route path="/users/:id/posts/:postId">
@@ -288,8 +288,8 @@ function APIProxy() {
 
 ## Related
 
-- [Router](/tapi/router/reference/router/) — root router component
-- [Link](/tapi/router/reference/link/) — navigate between routes
-- [Switch](/tapi/router/reference/switch/) — render only the first matching route
-- [useParams](/tapi/router/reference/use-params/) — access route parameters
-- [usePathname](/tapi/router/reference/use-pathname/) — access the current pathname
+- [Router](/toapi/router/reference/router/) — root router component
+- [Link](/toapi/router/reference/link/) — navigate between routes
+- [Switch](/toapi/router/reference/switch/) — render only the first matching route
+- [useParams](/toapi/router/reference/use-params/) — access route parameters
+- [usePathname](/toapi/router/reference/use-pathname/) — access the current pathname

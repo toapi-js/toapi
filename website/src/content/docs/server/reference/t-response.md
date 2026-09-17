@@ -77,7 +77,7 @@ When, for example, your `POST /users` endpoint returns `TResponse.void()`, you c
 
 ## Cache tags
 
-`TResponse` supports a tag-based cache invalidation system. When providing the `init` object, pass a `cache` object with a `tags` array. These tags are sent in the `X-TAPI-Tags` header and drive invalidation across the server, service worker, and client cache layers (see [Caching Strategies](/tapi/server/reference/caching/)).
+`TResponse` supports a tag-based cache invalidation system. When providing the `init` object, pass a `cache` object with a `tags` array. These tags are sent in the `X-TAPI-Tags` header and drive invalidation across the server, service worker, and client cache layers (see [Caching Strategies](/toapi/server/reference/caching/)).
 
 ```ts
 // GET /books/1
@@ -101,7 +101,7 @@ console.log(response.data.success); // true
 
 ### `cache`
 
-The resolved `{ tags?, ttl? }` cache options attached to the response, if any. The [request handler](/tapi/server/reference/create-request-handler/) reads this to decide whether and how to store or invalidate.
+The resolved `{ tags?, ttl? }` cache options attached to the response, if any. The [request handler](/toapi/server/reference/create-request-handler/) reads this to decide whether and how to store or invalidate.
 
 ## Interface
 
@@ -119,11 +119,11 @@ interface TResponseInit extends ResponseInit {
 
 - `cache.tags`: An array of string tags used for cache invalidation. Emitted as the `X-TAPI-Tags` header.
 - `cache.ttl`: Time-to-live in seconds for caching the response. Emitted as the `X-TAPI-Expires-At` header (an absolute timestamp).
-- `cookies`: A [`CookieStore`](/tapi/server/reference/t-request/#cookies) whose queued cookies are written onto the response headers.
+- `cookies`: A [`CookieStore`](/toapi/server/reference/t-request/#cookies) whose queued cookies are written onto the response headers.
 
 When both `tags` and `ttl` are specified, the cache entry is invalidated by whichever comes first — the TTL expiring or a tag being revalidated.
 
 ## Related
 
-- [`TRequest`](/tapi/server/reference/t-request/) — the request counterpart.
-- [Caching Strategies](/tapi/server/reference/caching/) — how `tags` and `ttl` propagate through the cache layers.
+- [`TRequest`](/toapi/server/reference/t-request/) — the request counterpart.
+- [Caching Strategies](/toapi/server/reference/caching/) — how `tags` and `ttl` propagate through the cache layers.

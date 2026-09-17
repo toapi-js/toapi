@@ -273,7 +273,7 @@ function LikeButton({ postId, likes, onLike }) {
 
 ## Related
 
-- [Router](/tapi/router/reference/router/) — root router component
-- [Route](/tapi/router/reference/route/) — define route matching
-- [useRouter](/tapi/router/reference/use-router/) — programmatic navigation
-- [usePathname](/tapi/router/reference/use-pathname/) — access the current pathname
+- [Router](/toapi/router/reference/router/) — root router component
+- [Route](/toapi/router/reference/route/) — define route matching
+- [useRouter](/toapi/router/reference/use-router/) — programmatic navigation
+- [usePathname](/toapi/router/reference/use-pathname/) — access the current pathname

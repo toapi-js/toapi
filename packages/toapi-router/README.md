@@ -2,6 +2,8 @@
 
 A lightweight, React-based client-side router with support for nested routes, path parameters, and immutable search parameter handling.
 
+📚 [Docs](https://toapi-js.github.io/toapi/router/)
+
 ## Overview
 
 The `@toapi/router` package provides a very lightweight routing solution for React applications with the following key features:

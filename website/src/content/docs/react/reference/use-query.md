@@ -3,7 +3,7 @@ title: "useQuery"
 description: "Reference for the useQuery hook: read a Toapi client query into a React component with Suspense and automatic updates on revalidation."
 ---
 
-`useQuery` reads a query from the [`@toapi/client`](/tapi/client/) and returns its resolved value, keeping that value up to date as the underlying cache entry is revalidated. It is the primary hook in [`@toapi/react`](/tapi/react/).
+`useQuery` reads a query from the [`@toapi/client`](/toapi/client/) and returns its resolved value, keeping that value up to date as the underlying cache entry is revalidated. It is the primary hook in [`@toapi/react`](/toapi/react/).
 
 ```ts
 import { useQuery } from "@toapi/react";
@@ -24,14 +24,14 @@ type ObservablePromise<T> = Promise<T> & Observable<T>;
 
 ### Parameters
 
-- **`query`** — either an `ObservablePromise<T>` or a factory returning one. This is exactly what a client `.get()` produces: a `Promise<T>` that also implements [`Observable<T>`](/tapi/client/reference/observable/) (it has a `.subscribe()` method). Pass the promise directly for a static query, or a factory function when the query depends on props/state — the factory is memoized on its identity, so build it with `useCallback` or inline it carefully to control when a new request is issued.
+- **`query`** — either an `ObservablePromise<T>` or a factory returning one. This is exactly what a client `.get()` produces: a `Promise<T>` that also implements [`Observable<T>`](/toapi/client/reference/observable/) (it has a `.subscribe()` method). Pass the promise directly for a static query, or a factory function when the query depends on props/state — the factory is memoized on its identity, so build it with `useCallback` or inline it carefully to control when a new request is issued.
 - **`options.startTransition`** — the `startTransition` function used to apply background updates. Defaults to React's `React.startTransition`. Override it to route updates through a custom transition (for example one wired to `useTransition`'s pending state).
 
 ### Return value
 
 `useQuery` returns the resolved value `T` directly — not a promise, and not a `{ data, isLoading }` wrapper.
 
-- On first render it calls React's `use()` on the query, so the component **suspends** until the value resolves. Wrap the component in a [`Suspense`](https://react.dev/reference/react/Suspense) boundary to show a fallback, and in an error boundary to catch rejections (such as an [`HttpError`](/tapi/client/reference/http-error/)).
+- On first render it calls React's `use()` on the query, so the component **suspends** until the value resolves. Wrap the component in a [`Suspense`](https://react.dev/reference/react/Suspense) boundary to show a fallback, and in an error boundary to catch rejections (such as an [`HttpError`](/toapi/client/reference/http-error/)).
 - On subsequent updates it returns the latest value delivered by the subscription, applied inside `startTransition` so the UI stays responsive during the refresh.
 
 :::note
@@ -43,7 +43,7 @@ type ObservablePromise<T> = Promise<T> & Observable<T>;
 Internally `useQuery` does two things with the object you pass:
 
 1. **Suspends via `use()`.** Until the first value arrives, the hook calls `React.use(query)`, which suspends the component until the promise resolves (or throws to the nearest error boundary).
-2. **Subscribes to the client's PubSub.** It calls `query.subscribe(...)` and re-renders whenever the client emits a new value for that entry. The client emits when the query is invalidated through Toapi's [tag-based cache invalidation](/tapi/client/reference/revalidation/), when the server pushes an out-of-band invalidation, or when you manually call a `revalidate` method such as `client.books.revalidate()`. The subscription is torn down automatically on unmount.
+2. **Subscribes to the client's PubSub.** It calls `query.subscribe(...)` and re-renders whenever the client emits a new value for that entry. The client emits when the query is invalidated through Toapi's [tag-based cache invalidation](/toapi/client/reference/revalidation/), when the server pushes an out-of-band invalidation, or when you manually call a `revalidate` method such as `client.books.revalidate()`. The subscription is torn down automatically on unmount.
 
 This means a component reading `client.books.get()` will re-render with fresh data after any mutation that affects the `books` tag — without you wiring up any additional state.
 
@@ -142,7 +142,7 @@ To force a refresh without a mutation — for example on a manual "refresh" butt
 
 ## See also
 
-- [`@toapi/react`](/tapi/react/) — package overview and installation.
-- [`@toapi/client`](/tapi/client/) — the client that produces the queries you pass here.
-- [`Observable`](/tapi/client/reference/observable/) — the subscription primitive `useQuery` builds on.
-- [Revalidation & subscriptions](/tapi/client/reference/revalidation/) — how tag-based invalidation drives updates.
+- [`@toapi/react`](/toapi/react/) — package overview and installation.
+- [`@toapi/client`](/toapi/client/) — the client that produces the queries you pass here.
+- [`Observable`](/toapi/client/reference/observable/) — the subscription primitive `useQuery` builds on.
+- [Revalidation & subscriptions](/toapi/client/reference/revalidation/) — how tag-based invalidation drives updates.

@@ -54,7 +54,7 @@ Unlike using multiple `Route` components directly (which render inclusively when
 
 ### Route Context
 
-When a match is found, `Switch` renders the matching `Route`'s children inside a `RouteContext`. This ensures that nested components have access to the correct path parameters and matched path information via [`useParams()`](/tapi/router/reference/use-params/).
+When a match is found, `Switch` renders the matching `Route`'s children inside a `RouteContext`. This ensures that nested components have access to the correct path parameters and matched path information via [`useParams()`](/toapi/router/reference/use-params/).
 
 ## Examples
 
@@ -102,6 +102,6 @@ Order matters significantly within a `Switch`. More specific paths should genera
 
 ## Related
 
-- [Route](/tapi/router/reference/route/) — the component used to define routes within a Switch
-- [Router](/tapi/router/reference/router/) — root router component
-- [Link](/tapi/router/reference/link/) — navigation component
+- [Route](/toapi/router/reference/route/) — the component used to define routes within a Switch
+- [Router](/toapi/router/reference/router/) — root router component
+- [Link](/toapi/router/reference/link/) — navigation component

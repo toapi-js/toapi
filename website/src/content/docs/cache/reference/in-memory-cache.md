@@ -3,7 +3,7 @@ title: "InMemoryCache"
 description: "SQLite in-memory Cache backend for @toapi/cache — fast, zero I/O, non-persistent."
 ---
 
-`InMemoryCache` is a [`Cache`](/tapi/cache/reference/cache/) implementation backed by an in-memory SQLite database (via Node.js built-in `node:sqlite`). Data does not survive process restarts.
+`InMemoryCache` is a [`Cache`](/toapi/cache/reference/cache/) implementation backed by an in-memory SQLite database (via Node.js built-in `node:sqlite`). Data does not survive process restarts.
 
 ```ts
 import { InMemoryCache } from "@toapi/cache/in-memory-cache";

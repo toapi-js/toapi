@@ -6,7 +6,7 @@ description: "The shared type contract and utilities that @toapi/server and @toa
 `@toapi/common` holds the shared foundation of the Toapi stack: the type contract that describes a route (`Route`, `Handler`, `Schema`, `TRequest`, `TResponse`) plus a handful of runtime utilities (`HttpError`, `CookieStore`, `isMutation`, protocol constants, and the `Logger` interface).
 
 :::note
-Most applications never import `@toapi/common` directly. Its public exports are re-exported from [`@toapi/server`](/tapi/server/) and [`@toapi/client`](/tapi/client/) — depend on those packages instead. This page documents the shared contract at a reference level so you understand what those packages hand you.
+Most applications never import `@toapi/common` directly. Its public exports are re-exported from [`@toapi/server`](/toapi/server/) and [`@toapi/client`](/toapi/client/) — depend on those packages instead. This page documents the shared contract at a reference level so you understand what those packages hand you.
 :::
 
 ## What lives here
@@ -64,7 +64,7 @@ export type BaseRoute = {
 
 ### `Handler` and `HandlerFn`
 
-A `Handler` pairs a [`Schema`](#schema) with the function that runs the request. `HandlerFn` is the function signature: it receives a [`TRequest`](/tapi/server/reference/t-request/) and resolves to a [`TResponse`](/tapi/server/reference/t-response/).
+A `Handler` pairs a [`Schema`](#schema) with the function that runs the request. `HandlerFn` is the function signature: it receives a [`TRequest`](/toapi/server/reference/t-request/) and resolves to a [`TResponse`](/toapi/server/reference/t-response/).
 
 ```ts
 export type HandlerFn<Response, AuthData, Params, Query, Body> = (
@@ -82,7 +82,7 @@ export type Handler<
 };
 ```
 
-You do not usually construct a `Handler` by hand — `defineHandler` from [`@toapi/server`](/tapi/server/) produces one for you.
+You do not usually construct a `Handler` by hand — `defineHandler` from [`@toapi/server`](/toapi/server/) produces one for you.
 
 ### `Schema`
 
@@ -111,11 +111,11 @@ export type Schema<
 };
 ```
 
-The `authorize` callback runs before the handler and returns the auth data later exposed as `request.auth()`. Throw an [`HttpError`](/tapi/common/reference/http-error/) from it to reject the request.
+The `authorize` callback runs before the handler and returns the auth data later exposed as `request.auth()`. Throw an [`HttpError`](/toapi/common/reference/http-error/) from it to reject the request.
 
 ### `TRequest`
 
-The augmented `Request` passed to every handler. Documented in full under the server section: see [TRequest](/tapi/server/reference/t-request/).
+The augmented `Request` passed to every handler. Documented in full under the server section: see [TRequest](/toapi/server/reference/t-request/).
 
 ```ts
 export type TRequest<AuthData, Params, Query, Body> = Request & {
@@ -130,7 +130,7 @@ export type TRequest<AuthData, Params, Query, Body> = Request & {
 
 ### `TResponse`
 
-The `Response` subclass handlers return, adding cache tagging, cookies, and typed `data`. Documented in full under the server section: see [TResponse](/tapi/server/reference/t-response/).
+The `Response` subclass handlers return, adding cache tagging, cookies, and typed `data`. Documented in full under the server section: see [TResponse](/toapi/server/reference/t-response/).
 
 ### `Path` and `StrictParams`
 
@@ -167,7 +167,7 @@ export interface Logger {
 
 ### `HttpError`
 
-The error class used to return a specific HTTP status from a handler or `authorize`. See the dedicated page: [HttpError](/tapi/common/reference/http-error/).
+The error class used to return a specific HTTP status from a handler or `authorize`. See the dedicated page: [HttpError](/toapi/common/reference/http-error/).
 
 ### `CookieStore`
 
@@ -231,7 +231,7 @@ export const OPENAPI_ROUTE = "/__tapi/openapi.json";
 
 ## Related
 
-- [HttpError](/tapi/common/reference/http-error/) — return typed HTTP error responses.
-- [TRequest](/tapi/server/reference/t-request/) — the request object handlers receive.
-- [TResponse](/tapi/server/reference/t-response/) — the response object handlers return.
-- [Server overview](/tapi/server/) — how these types are turned into a running API.
+- [HttpError](/toapi/common/reference/http-error/) — return typed HTTP error responses.
+- [TRequest](/toapi/server/reference/t-request/) — the request object handlers receive.
+- [TResponse](/toapi/server/reference/t-response/) — the response object handlers return.
+- [Server overview](/toapi/server/) — how these types are turned into a running API.

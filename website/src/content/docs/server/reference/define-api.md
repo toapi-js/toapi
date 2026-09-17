@@ -3,7 +3,7 @@ title: "defineApi"
 description: "The entry point for defining your Toapi surface — chain route definitions into a fully-typed map shared with the client."
 ---
 
-The `defineApi` function is the entry point for defining your API structure. It creates an [`ApiDefinition`](/tapi/server/reference/api-definition/) container that lets you chain route definitions together, building a fully-typed map of your API that can be shared with the [client](/tapi/client/).
+The `defineApi` function is the entry point for defining your API structure. It creates an [`ApiDefinition`](/toapi/server/reference/api-definition/) container that lets you chain route definitions together, building a fully-typed map of your API that can be shared with the [client](/toapi/client/).
 
 ## Usage
 
@@ -28,14 +28,14 @@ function defineApi(options?: {
 }): ApiDefinition<{}>;
 ```
 
-Returns an empty [`ApiDefinition`](/tapi/server/reference/api-definition/) instance.
+Returns an empty [`ApiDefinition`](/toapi/server/reference/api-definition/) instance.
 
 ## Options
 
 | Option   | Type                                 | Default         | Description                                                                                                                                                                                                                                                                                                                                                                                                          |
 | -------- | ------------------------------------ | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `cache`  | `Cache`                              | `new PubSub()`  | The cache / pub-sub instance used for tag-based revalidation and optional server-side response caching. Defaults to an in-process [`PubSub`](/tapi/server/reference/pub-sub/), which distributes invalidations but stores nothing. Pass a reference cache from [`@toapi/cache`](/tapi/cache/) to enable server-side caching, or a shared implementation such as `RedisCache` when running multiple server instances. |
-| `oas`    | `{ title: string; version: string }` | `undefined`     | When set, an OpenAPI 3.1 document is generated from your routes and served at `<basePath>/__tapi/openapi.json`. See [`generateOpenAPISchema`](/tapi/server/reference/generate-openapi-schema/).                                                                                                                                                                                                                      |
+| `cache`  | `Cache`                              | `new PubSub()`  | The cache / pub-sub instance used for tag-based revalidation and optional server-side response caching. Defaults to an in-process [`PubSub`](/toapi/server/reference/pub-sub/), which distributes invalidations but stores nothing. Pass a reference cache from [`@toapi/cache`](/toapi/cache/) to enable server-side caching, or a shared implementation such as `RedisCache` when running multiple server instances. |
+| `oas`    | `{ title: string; version: string }` | `undefined`     | When set, an OpenAPI 3.1 document is generated from your routes and served at `<basePath>/__tapi/openapi.json`. See [`generateOpenAPISchema`](/toapi/server/reference/generate-openapi-schema/).                                                                                                                                                                                                                      |
 | `logger` | `Logger`                             | `console.error` | Logger used by the request handler to report errors thrown by route handlers and cache operations. When omitted, errors are logged via `console.error`.                                                                                                                                                                                                                                                              |
 
 ### Logger interface
@@ -119,10 +119,10 @@ In the handler this is accessed via `req.params().path` (which would be `"images
 
 ## Type inference
 
-The primary purpose of `defineApi` is to build a TypeScript type representing your entire API surface. This type is inferred automatically as you chain `.route()` calls, and is consumed by [`createFetchClient`](/tapi/client/) as `typeof api` to produce the fully-typed client.
+The primary purpose of `defineApi` is to build a TypeScript type representing your entire API surface. This type is inferred automatically as you chain `.route()` calls, and is consumed by [`createFetchClient`](/toapi/client/) as `typeof api` to produce the fully-typed client.
 
 ## Related
 
-- [`defineHandler`](/tapi/server/reference/define-handler/) — implement the handlers registered here.
-- [`createRequestHandler`](/tapi/server/reference/create-request-handler/) — turn the definition into a request handler.
-- [`ApiDefinition`](/tapi/server/reference/api-definition/) — the type returned by `defineApi`.
+- [`defineHandler`](/toapi/server/reference/define-handler/) — implement the handlers registered here.
+- [`createRequestHandler`](/toapi/server/reference/create-request-handler/) — turn the definition into a request handler.
+- [`ApiDefinition`](/toapi/server/reference/api-definition/) — the type returned by `defineApi`.

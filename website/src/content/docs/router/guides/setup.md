@@ -112,6 +112,6 @@ The router is written in TypeScript and ships with type definitions included. No
 
 Now that you have the basics set up, you can explore more advanced features:
 
-- [Nested Routes & Parameters](/tapi/router/reference/route/) — build hierarchical layouts and use dynamic path parameters.
-- [Programmatic Navigation](/tapi/router/reference/use-router/) — navigate using hooks instead of Links.
-- [Search Parameters](/tapi/router/reference/use-search-params/) — manage URL query strings immutably.
+- [Nested Routes & Parameters](/toapi/router/reference/route/) — build hierarchical layouts and use dynamic path parameters.
+- [Programmatic Navigation](/toapi/router/reference/use-router/) — navigate using hooks instead of Links.
+- [Search Parameters](/toapi/router/reference/use-search-params/) — manage URL query strings immutably.

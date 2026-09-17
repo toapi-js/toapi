@@ -51,7 +51,7 @@ The base URL of your API server (e.g., `https://example.com/api`). Every request
 
 ## Return value
 
-Returns a `Client<Routes>` — a proxy whose properties mirror your API structure. See [How routes map to methods](/tapi/client/#how-routes-map-to-methods) for the full mapping.
+Returns a `Client<Routes>` — a proxy whose properties mirror your API structure. See [How routes map to methods](/toapi/client/#how-routes-map-to-methods) for the full mapping.
 
 ## Client methods
 
@@ -63,7 +63,7 @@ Performs a `GET` request.
 
 - **`query`** _(optional)_ — an object of query parameters. Required only if the route schema declares required query params; otherwise optional.
 - **`req`** _(optional)_ — a standard `RequestInit`.
-- **Returns** — a `Promise` resolving to the typed response data, augmented with a [`.subscribe()`](/tapi/client/reference/observable/) method for cache updates.
+- **Returns** — a `Promise` resolving to the typed response data, augmented with a [`.subscribe()`](/toapi/client/reference/observable/) method for cache updates.
 
 ```ts
 const users = await client.users.get({ active: true });
@@ -94,7 +94,7 @@ Performs a `DELETE` request (no body).
 
 ### `.revalidate(query?)`
 
-Forces a re-fetch of the cached `GET` entry for the same URL and resolves once it completes. Use it to imperatively refresh data. See [Revalidation & subscriptions](/tapi/client/reference/revalidation/).
+Forces a re-fetch of the cached `GET` entry for the same URL and resolves once it completes. Use it to imperatively refresh data. See [Revalidation & subscriptions](/toapi/client/reference/revalidation/).
 
 ## Features
 
@@ -133,7 +133,7 @@ Pass one via `options.logger` to route client-side fetch and revalidation errors
 
 ## Related
 
-- [Observable](/tapi/client/reference/observable/)
-- [Route types](/tapi/client/reference/route-types/)
-- [HttpError](/tapi/client/reference/http-error/)
-- [Revalidation & subscriptions](/tapi/client/reference/revalidation/)
+- [Observable](/toapi/client/reference/observable/)
+- [Route types](/toapi/client/reference/route-types/)
+- [HttpError](/toapi/client/reference/http-error/)
+- [Revalidation & subscriptions](/toapi/client/reference/revalidation/)
