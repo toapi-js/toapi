@@ -225,7 +225,7 @@ importers:
         version: 8.3.0(@types/node@25.9.6)(esbuild@0.28.2)(jiti@2.7.0)
       zod:
         specifier: ^4
-        version: 4.6.4
+        version: 4.6.5
     devDependencies:
       '@playwright/test':
         specifier: 'catalog:'
@@ -314,7 +314,7 @@ importers:
         version: 8.3.0(@types/node@25.9.6)(esbuild@0.28.2)(jiti@2.7.0)
       zod:
         specifier: ^4.0.17
-        version: 4.6.4
+        version: 4.6.5
     devDependencies:
       '@playwright/test':
         specifier: 'catalog:'
@@ -360,7 +360,7 @@ importers:
         version: 8.3.0(@types/node@25.9.6)(esbuild@0.28.2)(jiti@2.7.0)
       zod:
         specifier: ^4
-        version: 4.6.4
+        version: 4.6.5
     devDependencies:
       '@playwright/test':
         specifier: 'catalog:'
@@ -406,7 +406,7 @@ importers:
         version: 8.3.0(@types/node@25.9.6)(esbuild@0.28.2)(jiti@2.7.0)
       zod:
         specifier: ^4.0.17
-        version: 4.6.4
+        version: 4.6.5
     devDependencies:
       '@playwright/test':
         specifier: 'catalog:'
@@ -492,7 +492,7 @@ importers:
         version: 5.0.0(@types/node@25.9.6)(@vitest/browser-playwright@5.0.0)(@vitest/ui@5.0.0)(happy-dom@20.14.0)(vite@8.3.0(@types/node@25.9.6)(esbuild@0.28.2)(jiti@2.7.0))
       zod:
         specifier: ^4.0.17
-        version: 4.6.4
+        version: 4.6.5
 
   packages/toapi-common:
     dependencies:
@@ -508,7 +508,7 @@ importers:
         version: 5.0.0(@types/node@25.9.6)(@vitest/browser-playwright@5.0.0)(@vitest/ui@5.0.0)(happy-dom@20.14.0)(vite@8.3.0(@types/node@25.9.6)(esbuild@0.28.2)(jiti@2.7.0))
       zod:
         specifier: ^4.0.17
-        version: 4.6.4
+        version: 4.6.5
 
   packages/toapi-react:
     dependencies:
@@ -554,7 +554,7 @@ importers:
         version: 5.0.0(@types/node@25.9.6)(@vitest/browser-playwright@5.0.0)(@vitest/ui@5.0.0)(happy-dom@20.14.0)(vite@8.3.0(@types/node@25.9.6)(esbuild@0.28.2)(jiti@2.7.0))
       zod:
         specifier: ^4.1.5
-        version: 4.6.4
+        version: 4.6.5
 
   packages/toapi-router:
     dependencies:
@@ -603,7 +603,7 @@ importers:
         version: 6.0.3
       zod-openapi:
         specifier: ^6.0.0
-        version: 6.0.2(zod@4.6.4)
+        version: 6.0.2(zod@4.6.5)
     devDependencies:
       '@toapi/cache':
         specifier: workspace:^
@@ -616,7 +616,7 @@ importers:
         version: 5.0.0(@types/node@25.9.6)(@vitest/browser-playwright@5.0.0)(@vitest/ui@5.0.0)(happy-dom@20.14.0)(vite@8.3.0(@types/node@25.9.6)(esbuild@0.28.2)(jiti@2.7.0))
       zod:
         specifier: ^4.0.17
-        version: 4.6.4
+        version: 4.6.5
 
   packages/toapi-vite-plugin:
     dependencies:
@@ -4180,8 +4180,8 @@ packages:
     peerDependencies:
       zod: ^4.0.0
 
-  zod@4.6.4:
-    resolution: {integrity: sha512-AXSD6hvGdvRjajG/l1cC+d6IrhH+sjmPKtYeQdJIK8MFJl3LyClzS+o/YsVC+zQZPupAaeH5skwwm8YqYH7BqA==}
+  zod@4.6.5:
+    resolution: {integrity: sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q==}
 
   zwitch@2.0.4:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
@@ -4276,7 +4276,7 @@ snapshots:
   '@astrojs/sitemap@3.7.4':
     dependencies:
       sitemap: 9.0.1
-      zod: 4.6.4
+      zod: 4.6.5
 
   '@astrojs/starlight@0.42.0(astro@7.3.2(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(@types/node@25.9.6)(jiti@2.7.0))(typescript@7.0.2)':
     dependencies:
@@ -5699,7 +5699,7 @@ snapshots:
       vitefu: 1.1.3(vite@8.3.0(@types/node@25.9.6)(esbuild@0.28.2)(jiti@2.7.0))
       xxhash-wasm: 1.1.0
       yargs-parser: 22.0.0
-      zod: 4.6.4
+      zod: 4.6.5
     optionalDependencies:
       sharp: 0.35.4(@types/node@25.9.6)
     transitivePeerDependencies:
@@ -7644,10 +7644,10 @@ snapshots:
       grammex: 3.1.13
       graphmatch: 1.1.1
 
-  zod-openapi@6.0.2(zod@4.6.4):
+  zod-openapi@6.0.2(zod@4.6.5):
     dependencies:
-      zod: 4.6.4
+      zod: 4.6.5
 
-  zod@4.6.4: {}
+  zod@4.6.5: {}
 
   zwitch@2.0.4: {}
