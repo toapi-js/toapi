@@ -2,7 +2,6 @@ packages:
   - packages/*
   - examples/*
   - website
-  - website-toapi
 
 catalog:
   playwright: ^1.59.1

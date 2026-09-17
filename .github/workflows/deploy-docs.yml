@@ -35,10 +35,10 @@ jobs:
           cache: pnpm
       - uses: actions/configure-pages@v6
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --config.verify-deps-before-run=false --filter @farbenmeer/toapi-docs build
+      - run: pnpm --config.verify-deps-before-run=false --filter @toapi/docs build
       - uses: actions/upload-pages-artifact@v5
         with:
-          path: website-toapi/dist
+          path: website/dist
 
   deploy:
     needs: build
