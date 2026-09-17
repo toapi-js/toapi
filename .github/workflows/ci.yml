@@ -11,7 +11,7 @@ on:
 jobs:
   unit-tests:
     name: Unit Tests
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     services:
       # Label used to access the service container
       redis:
