@@ -7,7 +7,7 @@ import {
 } from "@toapi/server";
 import { act, render, screen } from "@testing-library/react";
 import { Suspense } from "react";
-import { describe, expect, test, vi } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 import { z } from "zod/v4";
 import { useQuery } from "./use-query.js";
 
@@ -42,9 +42,13 @@ describe("useQuery", () => {
   const logger = {
     info: vi.fn(),
   };
-  const client = createFetchClient<typeof api.routes>("http://localhost", {
-    fetch: (url, init) => handler(new Request(url, init)),
-    logger,
+  let client: ReturnType<typeof createFetchClient<typeof api.routes>>;
+
+  beforeEach(() => {
+    client = createFetchClient<typeof api.routes>("http://localhost", {
+      fetch: (url, init) => handler(new Request(url, init)),
+      logger,
+    });
   });
 
   test("Without Query", async () => {
@@ -129,16 +133,24 @@ describe("useQuery", () => {
 
   describe("reactivity", () => {
     test("updates on revalidation", async () => {
+      vi.useFakeTimers();
       const things: string[] = [];
+
+      const get = vi.fn(async () => {
+        return TResponse.json(things, { cache: { tags: ["things"] } });
+      });
+      const post = vi.fn(async (req) => {
+        const { thing } = await req.data();
+        things.push(thing);
+        return TResponse.json(null, { cache: { tags: ["things"] } });
+      });
 
       const api = defineApi().route("/things", {
         GET: defineHandler(
           {
             authorize: () => true,
           },
-          async () => {
-            return TResponse.json(things, { cache: { tags: ["things"] } });
-          },
+          get,
         ),
         POST: defineHandler(
           {
@@ -147,11 +159,7 @@ describe("useQuery", () => {
               thing: z.string(),
             }),
           },
-          async (req) => {
-            const { thing } = await req.data();
-            things.push(thing);
-            return TResponse.json(null, { cache: { tags: ["things"] } });
-          },
+          post,
         ),
       });
 
@@ -161,6 +169,7 @@ describe("useQuery", () => {
         {
           fetch: (url, init) => handler(new Request(url, init)),
           logger,
+          invalidationsUrl: false,
         },
       );
 
@@ -170,18 +179,23 @@ describe("useQuery", () => {
         return <div data-testid="sut">{JSON.stringify(data)}</div>;
       }
 
+      expect(get).not.toHaveBeenCalled();
       const screen = await act(() => render(<Sut />));
+      expect(get).toHaveBeenCalledTimes(1);
 
       expect(screen.getByTestId("sut")).toHaveTextContent("[]");
 
       await act(async () => {
         await client.things.post({ thing: "test" }).revalidated;
       });
+      expect(post).toHaveBeenCalled();
+      expect(get).toHaveBeenCalledTimes(2);
 
       expect(screen.getByTestId("sut")).toHaveTextContent('["test"]');
 
       await act(async () => {
         await client.things.post({ thing: "foo" }).revalidated;
+        await vi.advanceTimersByTimeAsync(150);
       });
 
       expect(screen.getByTestId("sut")).toHaveTextContent('["test","foo"]');

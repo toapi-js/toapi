@@ -74,10 +74,10 @@ describe("query identity during revalidation", () => {
       const pending = deferred<Response>();
       fetch.mockImplementationOnce(() => pending.promise);
       let refresh!: Promise<void>;
-      await act(() => {
+      act(() => {
         refresh = client.item.revalidate();
       });
-      await act(() => {
+      act(() => {
         fireEvent.change(input, { target: { value: "unsent" } });
       });
 
