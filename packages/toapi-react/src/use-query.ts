@@ -21,6 +21,7 @@ export function useQuery<T>(
   } | null>(null);
 
   React.useEffect(() => {
+    // TODO this breaks the React.use contract
     if (state) return;
     (async () => {
       try {
