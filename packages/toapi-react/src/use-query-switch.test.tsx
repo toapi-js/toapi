@@ -1,5 +1,10 @@
 import { createFetchClient } from "@toapi/client";
-import { createRequestHandler, defineApi, defineHandler, TResponse } from "@toapi/server";
+import {
+  createRequestHandler,
+  defineApi,
+  defineHandler,
+  TResponse,
+} from "@toapi/server";
 import { act, render, screen } from "@testing-library/react";
 import { Suspense } from "react";
 import { describe, expect, test } from "vitest";
@@ -15,10 +20,13 @@ import { useQuery } from "./use-query.js";
  */
 describe("useQuery on query change", () => {
   const api = defineApi().route("/thing", {
-    GET: defineHandler({ authorize: () => true, query: { q: z.string() } }, async (req) => {
-      const { q } = req.query();
-      return TResponse.json({ message: `value:${q}` });
-    }),
+    GET: defineHandler(
+      { authorize: () => true, query: { q: z.string() } },
+      async (req) => {
+        const { q } = req.query();
+        return TResponse.json({ message: `value:${q}` });
+      },
+    ),
   });
   const handler = createRequestHandler(api);
 
@@ -52,7 +60,7 @@ describe("useQuery on query change", () => {
       release = resolve;
     });
 
-    await act(() => {
+    act(() => {
       view.rerender(
         <Suspense fallback={<div data-testid="fallback">loading</div>}>
           <Sut q="second" />

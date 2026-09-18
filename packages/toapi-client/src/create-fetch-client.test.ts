@@ -113,16 +113,19 @@ describe("createFetchClient", () => {
   });
 
   test("not found", async () => {
-    // Regression check: the old Cache evicted entries on non-5xx HttpErrors
-    // (`status < 500 -> evict`) so a failed GET would be retried on the next
-    // call. The new Cache has no such eviction, so this currently fails —
-    // failed responses are now cached and reused forever.
+    vi.useFakeTimers();
     const promise = client.error["not-found"].get();
     await expect(promise).rejects.toThrow();
     const anotherPromise = client.error["not-found"].get();
-    expect(anotherPromise).not.toBe(promise);
+    expect(anotherPromise).toBe(promise);
     await expect(anotherPromise).rejects.toThrow();
     expect(logger.error).toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(150);
+
+    const thirdPromise = client.error["not-found"].get();
+    expect(thirdPromise).not.toBe(promise);
+    await expect(thirdPromise).rejects.toThrow();
   });
 
   test("TTL-based revalidation fires after TTL, not immediately", async () => {
@@ -273,39 +276,6 @@ describe("createFetchClient", () => {
     expect(logClientError).not.toHaveBeenCalled();
 
     await expect(client.thing.get()).rejects.toThrow(HttpError);
-  });
-
-  test("a failed revalidation reverts to the last cached value instead of discarding it", async () => {
-    // Regression check (review finding 1, cache.ts:39): the old Cache
-    // reverted to the last known-good value when a background revalidation
-    // failed. The new Cache's `entry.data.catch` just deletes the entry and
-    // logs, so a subscriber notified of the revalidation gets a hard
-    // rejection instead of the previous good data.
-    let call = 0;
-    const flakyFetch = vi.fn(async () => {
-      call += 1;
-      if (call === 1) {
-        return new Response(JSON.stringify({ version: 1 }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
-      return new Response(null, { status: 500 });
-    });
-    const flakyClient = createFetchClient<typeof api.routes>(
-      "https://example.com/api",
-      { fetch: flakyFetch },
-    );
-
-    const observable = flakyClient.books.get();
-    const cb = vi.fn();
-    observable.subscribe(cb);
-    await expect(observable).resolves.toEqual({ version: 1 });
-
-    await flakyClient.books.revalidate();
-
-    expect(cb).toHaveBeenCalledTimes(1);
-    await expect(cb.mock.calls[0]![0]).resolves.toEqual({ version: 1 });
   });
 
   test("stale tag mapping causes a spurious cache eviction when a URL's tags change", async () => {

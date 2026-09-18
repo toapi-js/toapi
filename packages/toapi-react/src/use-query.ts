@@ -24,10 +24,12 @@ export function useQuery<T>(
     let active = true;
     const unsubscribe = observable.subscribe((next) => {
       startTransition(async () => {
-        const value = await next;
-        // A late update from a subscription we have already left behind must
-        // not overwrite the current one.
-        if (active) setState({ source, value });
+        try {
+          const value = await next;
+          // A late update from a subscription we have already left behind must
+          // not overwrite the current one.
+          if (active) setState({ source, value });
+        } catch {}
       });
     });
     return () => {

@@ -140,7 +140,7 @@ client.books.get().subscribe((data) => {
 });
 ```
 
-The client only caches entries while they have active subscriptions. When the last subscription is removed, the entry is dropped from the cache after a short delay configurable via the `minTTL` option to `createFetchClient`, default 5000ms.
+The client only caches entries while they have active subscriptions. When the last subscription is removed, the entry is dropped from the cache after a short delay configurable via the `minTTL` option to `createFetchClient`, default 100ms.
 
 ## Related
 

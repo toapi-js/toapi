@@ -69,7 +69,7 @@ Bodies are JSON-encoded automatically and a `Content-Type: application/json` hea
 
 Every `GET` goes through an in-memory cache keyed by URL. If you call `client.users.get()` several times while a request is in flight, only one network request is made and all callers share the same promise. Once a response resolves, subsequent reads are served from the cache until the entry expires or is revalidated.
 
-Cached entries stay until something invalidates them: a tag-matching mutation, an explicit `.revalidate()` call, a scheduled TTL-based revalidation (driven by the `X-TAPI-Expires-At` header and the `maxOverdueTTL` option), or a failed request, which is evicted immediately so the next call retries. `minTTL` debounces repeated invalidations of the same URL into a single revalidation.
+Cached entries stay until something invalidates them: a tag-matching mutation, an explicit `.revalidate()` call, a scheduled TTL-based revalidation (driven by the `X-TAPI-Expires-At` header and the `maxOverdueTTL` option), or a failed request, which is evicted after a `minTTL`-long delay so the next call retries. `minTTL` also debounces repeated invalidations of the same URL into a single revalidation.
 
 ## Tag-based revalidation
 
