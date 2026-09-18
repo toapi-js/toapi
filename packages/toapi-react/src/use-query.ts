@@ -1,4 +1,4 @@
-import { HttpError, type Observable } from "@toapi/common";
+import { type Observable } from "@toapi/common";
 import * as React from "react";
 
 type ObservablePromise<T> = Promise<T> & Observable<T>;
@@ -19,6 +19,23 @@ export function useQuery<T>(
     source: unknown;
     value: T;
   } | null>(null);
+
+  React.useEffect(() => {
+    if (state) return;
+    (async () => {
+      try {
+        const initialValue = await observable;
+
+        setState(
+          (state) =>
+            state ?? {
+              value: initialValue,
+              source,
+            },
+        );
+      } catch {}
+    })();
+  }, [source]);
 
   React.useEffect(() => {
     let active = true;

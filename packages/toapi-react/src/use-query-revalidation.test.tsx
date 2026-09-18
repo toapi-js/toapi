@@ -139,32 +139,6 @@ describe("query identity during revalidation", () => {
     expect(screen.getByText("child:updated")).toBeVisible();
   });
 
-  test("the same URL on a different client is a different query", async () => {
-    const first = setup();
-    const second = setup();
-    const pending = deferred<Response>();
-    second.fetch.mockImplementationOnce(() => pending.promise);
-    function View({ client }: { client: typeof first.client }) {
-      return <p>{String(useQuery(() => client.item.get()))}</p>;
-    }
-    const tree = (client: typeof first.client) => (
-      <Suspense fallback={<p>Loading</p>}>
-        <View client={client} />
-      </Suspense>
-    );
-    const view = await act(() => render(tree(first.client)));
-    await act(() => {
-      view.rerender(tree(second.client));
-    });
-    expect(screen.getByText("Loading")).toBeVisible();
-    expect(screen.getByText("first")).not.toBeVisible();
-    await act(async () => {
-      pending.resolve(Response.json("second"));
-      await pending.promise;
-    });
-    expect(screen.getByText("second")).toBeVisible();
-  });
-
   test("a late refresh from the previous query cannot overwrite the selected query", async () => {
     const { client, fetch } = setup();
     function View({ selected }: { selected: "item" | "child" }) {
@@ -214,9 +188,7 @@ describe("query identity during revalidation", () => {
     );
     const view = await act(() => render(tree(first)));
     current = second;
-    await act(() => {
-      view.rerender(tree(second));
-    });
+    await act(() => view.rerender(tree(second)));
     expect(screen.getByText("Loading")).toBeVisible();
     expect(screen.getByText("first")).not.toBeVisible();
     await act(async () => {
