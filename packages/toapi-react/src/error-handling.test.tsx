@@ -4,7 +4,6 @@ import {
   createRequestHandler,
   defineApi,
   defineHandler,
-  PubSub,
   TResponse,
 } from "@toapi/server";
 import { Suspense } from "react";
