@@ -1,4 +1,4 @@
-import type { Observable } from "@toapi/common";
+import { HttpError, type Observable } from "@toapi/common";
 import * as React from "react";
 
 type ObservablePromise<T> = Promise<T> & Observable<T>;
@@ -11,14 +11,8 @@ export function useQuery<T>(
   query: ObservablePromise<T> | (() => ObservablePromise<T>),
   { startTransition = React.startTransition }: Options = {},
 ) {
-  const observable = React.useMemo(
-    typeof query === "function" ? query : () => query,
-    [query],
-  );
-  // The client keeps queryKey stable for the lifetime of a cached query,
-  // while each refresh returns a new promise. Comparing promises would mistake
-  // an inline factory's next render for a query switch and suspend on refresh.
-  // Custom observables without a key retain their existing identity semantics.
+  const observable = typeof query === "function" ? query() : query;
+
   const source = observable.queryKey ?? observable;
   const [state, setState] = React.useState<{
     source: unknown;
