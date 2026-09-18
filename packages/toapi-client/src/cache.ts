@@ -9,25 +9,21 @@ export interface CacheEntry {
 }
 
 interface Options {
-  minTTL?: number;
   maxOverdueTTL?: number;
   logger?: Logger;
   pubSub: PubSub;
 }
 
-const DEFAULT_MIN_TTL = 5 * 1000;
 const DEFAULT_MAX_OVERDUE_TTL = 1000;
 
 export class Cache {
   private storage = new Map<string, CacheEntry>();
   private tagIndex = new Map<string, Set<string>>();
-  private minTTL: number;
   private maxOverdueTTL: number;
   private errorLog: (error: unknown) => void | Promise<void>;
   private pubSub: PubSub;
 
   constructor(options: Options) {
-    this.minTTL = options.minTTL ?? DEFAULT_MIN_TTL;
     this.maxOverdueTTL = options.maxOverdueTTL ?? DEFAULT_MAX_OVERDUE_TTL;
     this.errorLog = options.logger?.error ?? console.error;
     this.pubSub = options.pubSub;

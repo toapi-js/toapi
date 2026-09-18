@@ -32,7 +32,6 @@ export function createFetchClient<
   });
 
   const cache = new Cache({
-    minTTL: options.minTTL,
     maxOverdueTTL: options.maxOverdueTTL,
     logger: options.logger,
     pubSub,
