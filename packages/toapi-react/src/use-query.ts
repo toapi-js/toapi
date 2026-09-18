@@ -1,7 +1,5 @@
-import type { Observable } from "@toapi/common";
 import * as React from "react";
-
-type ObservablePromise<T> = Promise<T> & Observable<T>;
+import type { ObservablePromise } from "./observable-promise.js";
 
 interface Options {
   startTransition?: typeof React.startTransition;
@@ -9,11 +7,11 @@ interface Options {
 
 export function useQuery<T>(
   query: ObservablePromise<T> | (() => ObservablePromise<T>),
-  { startTransition = React.startTransition }: Options = {}
+  { startTransition = React.startTransition }: Options = {},
 ) {
   const observable = React.useMemo(
     typeof query === "function" ? query : () => query,
-    [query]
+    [query],
   );
   // The client keeps queryKey stable for the lifetime of a cached query,
   // while each refresh returns a new promise. Comparing promises would mistake
