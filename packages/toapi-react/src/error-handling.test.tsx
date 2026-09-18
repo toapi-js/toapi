@@ -10,7 +10,7 @@ import {
 import { Suspense } from "react";
 import { ErrorBoundary } from "react-error-boundary";
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { useQuery } from "./use-query";
+import { useQuery } from "./use-query.js";
 
 describe("useQuery error handling", () => {
   const get = vi.fn<() => Promise<TResponse<{ ok: boolean }>>>(async () => {
