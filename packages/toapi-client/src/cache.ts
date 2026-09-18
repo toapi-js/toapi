@@ -30,6 +30,7 @@ export class Cache {
   }
 
   public set(url: string, entry: CacheEntry) {
+    const oldEntry = this.storage.get(url);
     this.storage.set(url, entry);
 
     entry.data.catch((error) => {
@@ -39,13 +40,18 @@ export class Cache {
 
     entry.meta
       .then(({ tags, expiresAt }) => {
-        for (const tag of tags) {
-          let urls = this.tagIndex.get(tag);
-          if (!urls) {
-            urls = new Set();
-            this.tagIndex.set(tag, urls);
+        const tagsToSet = new Set(tags);
+        // sync with tagIndex
+        for (const [tag, urls] of this.tagIndex) {
+          if (tagsToSet.delete(tag)) {
+            urls.add(url);
+          } else {
+            urls.delete(url);
           }
-          urls.add(url);
+        }
+        for (const tag of tagsToSet) {
+          // these are only tags that are not in the index yet
+          this.tagIndex.set(tag, new Set([url]));
         }
 
         if (!expiresAt) return;

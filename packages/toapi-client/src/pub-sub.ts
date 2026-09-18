@@ -9,6 +9,7 @@ interface Options {
 export class PubSub {
   private subscriptions = new Set<Subscription>();
   private debounceTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
+  private requestedUrls = new Set<string>();
   private minTTL: number;
 
   constructor(options: Options) {
@@ -25,16 +26,28 @@ export class PubSub {
   async publish(urls: Set<string>) {
     for (const url of urls) {
       if (this.debounceTimeouts.has(url)) {
+        // debounced, mark as requested and ignore now
+        this.requestedUrls.add(url);
         urls.delete(url);
       }
     }
 
-    const timeout = setTimeout(() => {
-      for (const url of urls) {
-        this.debounceTimeouts.delete(url);
-      }
-      this.publish(urls);
-    }, this.minTTL);
+    const timeout = setTimeout(
+      () =>
+        Promise.all(
+          Array.from(urls).map((url) => {
+            if (this.requestedUrls.has(url)) {
+              this.debounceTimeouts.delete(url);
+              // needs to be refetched
+              return this.publish(urls);
+            } else {
+              // debounce timeout over
+              this.debounceTimeouts.delete(url);
+            }
+          }),
+        ),
+      this.minTTL,
+    );
 
     for (const url of urls) {
       this.debounceTimeouts.set(url, timeout);

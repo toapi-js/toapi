@@ -275,6 +275,89 @@ describe("createFetchClient", () => {
     await expect(client.thing.get()).rejects.toThrow(HttpError);
   });
 
+  test("a failed revalidation reverts to the last cached value instead of discarding it", async () => {
+    // Regression check (review finding 1, cache.ts:39): the old Cache
+    // reverted to the last known-good value when a background revalidation
+    // failed. The new Cache's `entry.data.catch` just deletes the entry and
+    // logs, so a subscriber notified of the revalidation gets a hard
+    // rejection instead of the previous good data.
+    let call = 0;
+    const flakyFetch = vi.fn(async () => {
+      call += 1;
+      if (call === 1) {
+        return new Response(JSON.stringify({ version: 1 }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return new Response(null, { status: 500 });
+    });
+    const flakyClient = createFetchClient<typeof api.routes>(
+      "https://example.com/api",
+      { fetch: flakyFetch },
+    );
+
+    const observable = flakyClient.books.get();
+    const cb = vi.fn();
+    observable.subscribe(cb);
+    await expect(observable).resolves.toEqual({ version: 1 });
+
+    await flakyClient.books.revalidate();
+
+    expect(cb).toHaveBeenCalledTimes(1);
+    await expect(cb.mock.calls[0]![0]).resolves.toEqual({ version: 1 });
+  });
+
+  test("stale tag mapping causes a spurious cache eviction when a URL's tags change", async () => {
+    // Regression check (review finding 2, cache.ts:46): tagIndex only ever
+    // adds tag -> url mappings and never removes the old ones when a URL's
+    // tags change on refetch, so invalidating a tag the URL no longer
+    // carries still evicts it from the cache.
+    //
+    // This is checked via refetch counts rather than subscriber
+    // notifications, since notifications go through PubSub's own buggy
+    // debounce (review finding 3) which would confound the result here.
+    // `invalidateTags` deletes the storage entry synchronously before
+    // touching PubSub, so the eviction itself is directly observable.
+    let published = false;
+    const getPost = vi.fn(async () =>
+      TResponse.json(
+        { title: "post" },
+        { cache: { tags: [published ? "published" : "draft"] } },
+      ),
+    );
+    const touchDraft = vi.fn(async () =>
+      TResponse.json({ ok: true }, { cache: { tags: ["draft"] } }),
+    );
+    const api = defineApi({ logger: mockLogger })
+      .route("/post", {
+        GET: defineHandler({ authorize: () => true }, getPost),
+      })
+      .route("/touchDraft", {
+        POST: defineHandler({ authorize: () => true }, touchDraft),
+      });
+
+    const handler = createRequestHandler(api, { basePath: "/api" });
+    const client = createFetchClient<typeof api.routes>("http://test/api", {
+      fetch: (url, init) => handler(new Request(url, init)),
+    });
+
+    await client.post.get(); // cached under tag "draft"
+
+    // Republish the post: the cache entry is dropped and, on the next
+    // .get(), refetched, now carrying only the "published" tag.
+    published = true;
+    await client.post.revalidate();
+    await client.post.get();
+    expect(getPost).toHaveBeenCalledTimes(2);
+
+    // A mutation invalidating "draft" — a tag the post no longer carries —
+    // must not evict the now-published post from the cache.
+    await client.touchDraft.post().revalidated;
+    await client.post.get();
+    expect(getPost).toHaveBeenCalledTimes(2);
+  });
+
   test("debounce", async () => {
     vi.useFakeTimers();
     const minTTL = 1000;
@@ -296,6 +379,36 @@ describe("createFetchClient", () => {
 
       await vi.advanceTimersByTimeAsync(minTTL);
       expect(cb).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("a single invalidation does not self-repeat after minTTL", async () => {
+    // Regression check: PubSub.publish() unconditionally re-publishes the
+    // same urls via setTimeout after `minTTL`, even when no second
+    // invalidation happened. A single revalidate() should only notify
+    // subscribers once — it must not fire again on its own once minTTL
+    // elapses.
+    vi.useFakeTimers();
+    const minTTL = 1000;
+    const debounceClient = createFetchClient<typeof api.routes>(
+      "https://example.com/api",
+      { fetch, minTTL },
+    );
+    try {
+      const cb = vi.fn();
+      const observable = debounceClient.books.get();
+      observable.subscribe(cb);
+      await observable;
+
+      await debounceClient.books.revalidate();
+      expect(cb).toHaveBeenCalledTimes(1);
+
+      // No further invalidation — waiting out minTTL must not trigger
+      // another notification on its own.
+      await vi.advanceTimersByTimeAsync(minTTL);
+      expect(cb).toHaveBeenCalledTimes(1);
     } finally {
       vi.useRealTimers();
     }
