@@ -7,7 +7,7 @@ import {
 } from "@toapi/server";
 import { act, render, screen } from "@testing-library/react";
 import { Suspense } from "react";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { z } from "zod/v4";
 import { useQuery } from "./use-query.js";
 
@@ -38,11 +38,15 @@ describe("useQuery on query change", () => {
   // The second request is held open so we can look at what the component
   // renders *while* the new query is still in flight.
   let hold: Promise<void> = Promise.resolve();
+  const logger = {
+    info: vi.fn(),
+  };
   const client = createFetchClient<typeof api.routes>("http://localhost", {
     fetch: async (url, init) => {
       if (url.includes("q=second")) await hold;
       return handler(new Request(url, init));
     },
+    logger,
   });
 
   test("does not render the previous query's data", async () => {
