@@ -1,40 +1,47 @@
-export class PubSub {
-  private subscriptions = new Map<
-    string,
-    Set<(data: Promise<unknown>) => void>
-  >();
-  private onClear: (url: string) => void;
+type Subscription = (urls: Set<string>) => Promise<void>;
 
-  constructor({ onClear }: { onClear: (url: string) => void }) {
-    this.onClear = onClear;
+const DEFAULT_MIN_TTL = 5 * 1000;
+
+interface Options {
+  minTTL?: number;
+}
+
+export class PubSub {
+  private subscriptions = new Set<Subscription>();
+  private debounceTimeouts = new Map<string, NodeJS.Timeout>();
+  private minTTL: number;
+
+  constructor(options: Options) {
+    this.minTTL = options.minTTL ?? DEFAULT_MIN_TTL;
   }
 
-  subscribe(url: string, callback: (data: Promise<unknown>) => void) {
-    let urlSubscriptions = this.subscriptions.get(url);
-    if (!urlSubscriptions) {
-      urlSubscriptions = new Set();
-      this.subscriptions.set(url, urlSubscriptions);
-    }
-    urlSubscriptions.add(callback);
+  subscribe(callback: Subscription) {
+    this.subscriptions.add(callback);
     return () => {
-      urlSubscriptions.delete(callback);
-      if (urlSubscriptions.size === 0) {
-        this.subscriptions.delete(url);
-        this.onClear(url);
-      }
+      this.subscriptions.delete(callback);
     };
   }
 
-  publish(url: string, data: Promise<unknown>) {
-    const urlSubscriptions = this.subscriptions.get(url);
-    if (urlSubscriptions) {
-      for (const callback of urlSubscriptions.values()) {
-        callback(data);
+  async publish(urls: Set<string>) {
+    for (const url of urls) {
+      if (this.debounceTimeouts.has(url)) {
+        urls.delete(url);
       }
     }
-  }
 
-  has(url: string) {
-    return this.subscriptions.has(url);
+    const timeout = setTimeout(() => {
+      for (const url of urls) {
+        this.debounceTimeouts.delete(url);
+      }
+      this.publish(urls);
+    }, this.minTTL);
+
+    for (const url of urls) {
+      this.debounceTimeouts.set(url, timeout);
+    }
+
+    await Promise.all(
+      this.subscriptions.values().map((callback) => callback(urls)),
+    );
   }
 }
