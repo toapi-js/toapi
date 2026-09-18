@@ -64,7 +64,7 @@ describe("useQuery on query change", () => {
       release = resolve;
     });
 
-    act(() => {
+    await act(async () => {
       view.rerender(
         <Suspense fallback={<div data-testid="fallback">loading</div>}>
           <Sut q="second" />
