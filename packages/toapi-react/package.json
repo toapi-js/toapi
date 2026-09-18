@@ -20,7 +20,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "release": "pnpm run build && pnpm publish --no-git-checks",
-    "test": "vitest"
+    "test": "vitest run"
   },
   "dependencies": {
     "@toapi/common": "workspace:^"
@@ -36,6 +36,7 @@
     "@types/react": "^19.2.7",
     "react": "^19.1.1",
     "react-dom": "^19.3.0",
+    "react-error-boundary": "^6.1.5",
     "vitest": "^5.0.0",
     "zod": "^4.1.5"
   },

@@ -69,11 +69,11 @@ Bodies are JSON-encoded automatically and a `Content-Type: application/json` hea
 
 Every `GET` goes through an in-memory cache keyed by URL. If you call `client.users.get()` several times while a request is in flight, only one network request is made and all callers share the same promise. Once a response resolves, subsequent reads are served from the cache until the entry expires or is revalidated.
 
-Cache lifetime is controlled by the `minTTL` and `maxOverdueTTL` options and by the `X-TAPI-Expires-At` header the server sends. Entries with no active subscribers are dropped after `minTTL`.
+Cached entries stay until something invalidates them: a tag-matching mutation, an explicit `.revalidate()` call, a scheduled TTL-based revalidation (driven by the `X-TAPI-Expires-At` header and the `maxOverdueTTL` option), or a failed request, which is evicted after a `minTTL`-long delay so the next call retries. `minTTL` also debounces repeated invalidations of the same URL into a single revalidation.
 
 ## Tag-based revalidation
 
-Toapi servers attach cache **tags** to `GET` responses via the `X-TAPI-Tags` header. The client remembers which URLs carry which tags. When a mutation (`POST`/`PUT`/`PATCH`/`DELETE`) responds with tags that overlap cached `GET` requests, those requests are revalidated automatically, and any active subscribers receive the fresh data.
+Toapi servers attach cache **tags** to `GET` responses via the `X-TAPI-Tags` header. The client remembers which URLs carry which tags. When a mutation (`POST`/`PUT`/`PATCH`/`DELETE`) responds with tags that overlap cached `GET` requests, those cache entries are invalidated: active subscribers are notified and re-fetch immediately, while unsubscribed entries are simply re-fetched on their next `.get()` call.
 
 The client can also receive invalidations pushed from the server out-of-band, over a long-lived connection to the `/__tapi/invalidations` endpoint (or via a service worker `postMessage`). This keeps open views up to date when data changes on the server without the client having triggered the mutation itself. This is enabled by default and can be disabled with the `invalidationsUrl: false` option.
 

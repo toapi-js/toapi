@@ -1,4 +1,4 @@
-import type { Observable } from "@toapi/common";
+import { type Observable } from "@toapi/common";
 import * as React from "react";
 
 type ObservablePromise<T> = Promise<T> & Observable<T>;
@@ -8,31 +8,46 @@ interface Options {
 }
 
 export function useQuery<T>(
+  // TODO remove the useless function-form in next major release
   query: ObservablePromise<T> | (() => ObservablePromise<T>),
-  { startTransition = React.startTransition }: Options = {}
+  { startTransition = React.startTransition }: Options = {},
 ) {
-  const observable = React.useMemo(
-    typeof query === "function" ? query : () => query,
-    [query]
-  );
-  // The client keeps queryKey stable for the lifetime of a cached query,
-  // while each refresh returns a new promise. Comparing promises would mistake
-  // an inline factory's next render for a query switch and suspend on refresh.
-  // Custom observables without a key retain their existing identity semantics.
+  const observable = typeof query === "function" ? query() : query;
+
   const source = observable.queryKey ?? observable;
   const [state, setState] = React.useState<{
-    source: object;
+    source: unknown;
     value: T;
   } | null>(null);
+
+  React.useEffect(() => {
+    // TODO this breaks the React.use contract
+    if (state) return;
+    (async () => {
+      try {
+        const initialValue = await observable;
+
+        setState(
+          (state) =>
+            state ?? {
+              value: initialValue,
+              source,
+            },
+        );
+      } catch {}
+    })();
+  }, [source]);
 
   React.useEffect(() => {
     let active = true;
     const unsubscribe = observable.subscribe((next) => {
       startTransition(async () => {
-        const value = await next;
-        // A late update from a subscription we have already left behind must
-        // not overwrite the current one.
-        if (active) setState({ source, value });
+        try {
+          const value = await next;
+          // A late update from a subscription we have already left behind must
+          // not overwrite the current one.
+          if (active) setState({ source, value });
+        } catch {}
       });
     });
     return () => {

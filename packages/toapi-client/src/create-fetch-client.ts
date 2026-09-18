@@ -4,44 +4,15 @@ import type {
   Logger,
   MaybePromise,
 } from "@toapi/common";
-import {
-  INVALIDATION_POST_EVENT,
-  INVALIDATIONS_ROUTE,
-  TAGS_HEADER,
-} from "@toapi/common";
+import { INVALIDATIONS_ROUTE, TAGS_HEADER } from "@toapi/common";
+import { buildObservable } from "./build-observable.js";
 import { Cache } from "./cache.js";
 import type { Client, Revalidating } from "./client-types.js";
 import { handleResponse } from "./handle-response.js";
+import { listenForInvalidations } from "./invalidation-stream.js";
+import { PubSub } from "./pub-sub.js";
 
 const globalFetch = fetch;
-
-async function listenForInvalidations(url: string, cache: Cache) {
-  const MAX_ATTEMPTS = 1000;
-  for (let retry = 0; retry < MAX_ATTEMPTS; retry++) {
-    try {
-      const res = await globalFetch(url);
-      if (!res.ok || !res.body) break;
-
-      let buffer = "";
-      const decoder = new TextDecoder();
-      for await (const chunk of res.body) {
-        buffer += decoder.decode(chunk);
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-        for (const line of lines) {
-          const rawTags = line.trim();
-          if (!rawTags) continue;
-          await cache.revalidateTags(rawTags.split(" "));
-        }
-      }
-    } catch {
-      // network error — retry below
-    }
-    await new Promise((resolve) =>
-      setTimeout(resolve, 500 * Math.pow(2, Math.min(retry, 10))),
-    );
-  }
-}
 
 interface Options {
   fetch?: (url: string, init: RequestInit) => Promise<Response>;
@@ -51,15 +22,24 @@ interface Options {
   invalidationsUrl?: string | false;
 }
 
+const DEFAULT_MIN_TTL = 100;
+
 export function createFetchClient<
   Routes extends Record<BasePath, MaybePromise<BaseRoute>>,
 >(apiUrl: string, options: Options = {}) {
   const fetch = options.fetch ?? globalFetch;
 
+  const minTTL = options?.minTTL ?? DEFAULT_MIN_TTL;
+
+  const pubSub = new PubSub({
+    minTTL,
+  });
+
   const cache = new Cache({
-    minTTL: options.minTTL,
     maxOverdueTTL: options.maxOverdueTTL,
     logger: options.logger,
+    pubSub,
+    minTTL,
   });
 
   const invalidationsUrl =
@@ -67,42 +47,29 @@ export function createFetchClient<
       ? null
       : (options.invalidationsUrl ?? apiUrl + INVALIDATIONS_ROUTE);
 
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.addEventListener("message", async (event) => {
-      if (
-        typeof event.data === "object" &&
-        event.data !== null &&
-        "type" in event.data &&
-        event.data.type === INVALIDATION_POST_EVENT
-      ) {
-        try {
-          await cache.revalidateTags(event.data.tags);
-        } catch (error) {
-          console.warn(
-            "TApi: Failed to revalidate tags: received invalid post message",
-            event.data,
-          );
-        }
-      }
-    });
-    if (invalidationsUrl && !navigator.serviceWorker.controller) {
-      listenForInvalidations(invalidationsUrl, cache);
-    }
-  } else if (invalidationsUrl && typeof window !== "undefined") {
-    listenForInvalidations(invalidationsUrl, cache);
-  }
+  listenForInvalidations({
+    fetch,
+    onInvalidate: (tags) => cache.invalidateTags(tags),
+    onConnect: () => cache.invalidateAll(),
+    logger: options.logger,
+    invalidationsUrl,
+  });
 
   function load(url: string, init: RequestInit = {}) {
-    return cache.request(url, () =>
-      fetch(url, {
+    return buildObservable({
+      fetch,
+      url,
+      init: {
         method: "GET",
         ...init,
-      }),
-    );
+      },
+      pubSub,
+      cache,
+    });
   }
 
   async function revalidate(url: string) {
-    await cache.revalidateUrl(url);
+    await cache.invalidateUrl(url);
   }
 
   function mutate(
@@ -117,7 +84,7 @@ export function createFetchClient<
       headers.set("Content-Type", "application/json");
     }
 
-    const res = fetch(url, {
+    const response = fetch(url, {
       method,
       body:
         typeof data === "undefined"
@@ -128,22 +95,21 @@ export function createFetchClient<
       ...init,
       headers,
     });
+    const body = response.then(handleResponse).catch(async (error) => {
+      await options?.logger?.error?.(error);
+      throw error;
+    });
 
-    const revalidationPromise = res.then((res) =>
-      cache.revalidateTags(res.headers.get(TAGS_HEADER)?.split(" ") ?? []),
-    );
+    const revalidated = response.then(async (res) => {
+      await Promise.all([
+        body,
+        cache.invalidateTags(res.headers.get(TAGS_HEADER)?.split(" ") ?? []),
+      ]);
+    });
 
-    return Object.assign(
-      res
-        .then((res) => handleResponse(res))
-        .catch(async (error) => {
-          await options?.logger?.error?.(error);
-          throw error;
-        }),
-      {
-        revalidated: revalidationPromise,
-      },
-    );
+    return Object.assign(body, {
+      revalidated,
+    });
   }
 
   return new Proxy(() => {}, {

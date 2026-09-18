@@ -1,22 +1,27 @@
-import { beforeEach, describe, expect, vi, test } from "vitest";
-import { createFetchClient } from "./create-fetch-client.js";
-import { mockLogger, type api } from "./api.mock.js";
-import { requestHandler } from "./request-handler.mock.js";
 import { HttpError, TResponse } from "@toapi/common";
-import { defineApi, defineHandler, createRequestHandler } from "@toapi/server";
+import { createRequestHandler, defineApi, defineHandler } from "@toapi/server";
+import { beforeEach, describe, expect, test, vi } from "vitest";
+import { mockLogger, type api } from "./api.mock.js";
+import { createFetchClient } from "./create-fetch-client.js";
+import { requestHandler } from "./request-handler.mock.js";
 
 describe("createFetchClient", () => {
   const fetch = vi.fn((url: string, init: RequestInit) => {
     return requestHandler(new Request(url, init));
   });
+  const logger = {
+    error: vi.fn(),
+  };
   let client = createFetchClient<typeof api.routes>("https://example.com/api", {
     fetch,
+    logger,
   });
 
   beforeEach(() => {
     fetch.mockClear();
     client = createFetchClient<typeof api.routes>("https://example.com/api", {
       fetch,
+      logger,
     });
   });
 
@@ -64,26 +69,25 @@ describe("createFetchClient", () => {
     const cb = vi.fn();
     const promise = client.books.get();
     const unsubscribe = promise.subscribe(cb);
-    expect(cb).toHaveBeenCalledTimes(1);
     await promise;
-    expect(cb).toHaveBeenCalledTimes(1);
+    expect(cb).toHaveBeenCalledTimes(0);
     await client.books.revalidate();
-    expect(cb).toHaveBeenCalledTimes(2);
+    expect(cb).toHaveBeenCalledTimes(1);
+    // Regression check: an unsubscribed callback must stop receiving updates.
     unsubscribe();
     await client.books.revalidate();
-    expect(cb).toHaveBeenCalledTimes(2);
+    expect(cb).toHaveBeenCalledTimes(1);
   });
 
   test("tag-based revalidation", async () => {
     const cb = vi.fn();
     const promise = client.movies[1]!.get({ test: "asdf" });
     promise.subscribe(cb);
-    expect(cb).toHaveBeenCalledTimes(1);
     const data = await promise;
     expect(data.id).toEqual("1");
-    expect(promise).toBe(cb.mock.calls[0][0]);
+    expect(cb).toHaveBeenCalledTimes(0);
     await client.movies.post({ id: "3", title: "Movie 3" }).revalidated;
-    expect(cb).toHaveBeenCalledTimes(2);
+    expect(cb).toHaveBeenCalledTimes(1);
   });
 
   test("wildcard route", async () => {
@@ -109,10 +113,19 @@ describe("createFetchClient", () => {
   });
 
   test("not found", async () => {
+    vi.useFakeTimers();
     const promise = client.error["not-found"].get();
     await expect(promise).rejects.toThrow();
     const anotherPromise = client.error["not-found"].get();
-    expect(anotherPromise).not.toBe(promise);
+    expect(anotherPromise).toBe(promise);
+    await expect(anotherPromise).rejects.toThrow();
+    expect(logger.error).toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(150);
+
+    const thirdPromise = client.error["not-found"].get();
+    expect(thirdPromise).not.toBe(promise);
+    await expect(thirdPromise).rejects.toThrow();
   });
 
   test("TTL-based revalidation fires after TTL, not immediately", async () => {
@@ -186,33 +199,31 @@ describe("createFetchClient", () => {
   test("errors are propagated", async () => {
     const observable = client.error["not-found"].get();
 
-    const cb = vi.fn();
-    observable.subscribe(cb);
-
     await expect(observable).rejects.toThrow(new HttpError(404, "Not Found"));
 
-    await expect(cb.mock.calls[0][0]).rejects.toThrow(
-      new HttpError(404, "Not Found"),
-    );
-
+    // The server-side handler logs the error it threw.
     expect(mockLogger.error).toHaveBeenCalled();
   });
 
-  test("subscribe notifies of newer resolved value when revalidation completed before subscribe", async () => {
-    // Get the observable and wait for it to resolve so entry.current is set
-    const observable = client.books.get();
-    await observable;
+  test("client logger is notified of background GET failures", async () => {
+    // Regression check: Cache used to log every non-4xx fetch error via the
+    // `logger` option (see the old setResolveHook `this.errorLog(error)`).
+    // The new Cache stores a `logger`-derived errorLog field but never calls
+    // it, so this currently fails — background GET failures go unlogged.
+    const logClientError = vi.fn();
+    const flakyClient = createFetchClient<typeof api.routes>(
+      "https://example.com/api",
+      {
+        fetch: vi.fn(async () => {
+          throw new Error("network down");
+        }),
+        logger: { error: logClientError },
+      },
+    );
 
-    // Trigger a revalidation and wait for it to fully complete so entry.current
-    // is updated to the new observable and entry.next is cleared
-    await client.books.revalidate();
+    await expect(flakyClient.books.get()).rejects.toThrow("network down");
 
-    // Now subscribe to the *original* observable — a new subscriber that missed
-    // the revalidation. The callback should fire immediately with the newer value.
-    const cb = vi.fn();
-    observable.subscribe(cb);
-
-    expect(cb).toHaveBeenCalledTimes(1);
+    expect(logClientError).toHaveBeenCalledWith(expect.any(Error));
   });
 
   test("cache eviction on 404", async () => {
@@ -251,19 +262,125 @@ describe("createFetchClient", () => {
     const observable = client.thing.get();
     const thing = await observable;
     const unsubscribe = observable.subscribe(sub);
-    expect(sub).toHaveBeenCalled();
 
     expect(thing).toEqual({ name: "thing" });
 
     await client.thing.delete();
     unsubscribe();
 
-    expect(sub).toHaveBeenCalledTimes(2);
+    // Delete invalidates the "thing" tag, so the subscriber sees one update.
+    expect(sub).toHaveBeenCalledTimes(1);
     expect(mockLogger.error).toHaveBeenCalledWith(
       new HttpError(404, "Not Found"),
     );
     expect(logClientError).not.toHaveBeenCalled();
 
     await expect(client.thing.get()).rejects.toThrow(HttpError);
+  });
+
+  test("stale tag mapping causes a spurious cache eviction when a URL's tags change", async () => {
+    // Regression check (review finding 2, cache.ts:46): tagIndex only ever
+    // adds tag -> url mappings and never removes the old ones when a URL's
+    // tags change on refetch, so invalidating a tag the URL no longer
+    // carries still evicts it from the cache.
+    //
+    // This is checked via refetch counts rather than subscriber
+    // notifications, since notifications go through PubSub's own buggy
+    // debounce (review finding 3) which would confound the result here.
+    // `invalidateTags` deletes the storage entry synchronously before
+    // touching PubSub, so the eviction itself is directly observable.
+    let published = false;
+    const getPost = vi.fn(async () =>
+      TResponse.json(
+        { title: "post" },
+        { cache: { tags: [published ? "published" : "draft"] } },
+      ),
+    );
+    const touchDraft = vi.fn(async () =>
+      TResponse.json({ ok: true }, { cache: { tags: ["draft"] } }),
+    );
+    const api = defineApi({ logger: mockLogger })
+      .route("/post", {
+        GET: defineHandler({ authorize: () => true }, getPost),
+      })
+      .route("/touchDraft", {
+        POST: defineHandler({ authorize: () => true }, touchDraft),
+      });
+
+    const handler = createRequestHandler(api, { basePath: "/api" });
+    const client = createFetchClient<typeof api.routes>("http://test/api", {
+      fetch: (url, init) => handler(new Request(url, init)),
+    });
+
+    await client.post.get(); // cached under tag "draft"
+
+    // Republish the post: the cache entry is dropped and, on the next
+    // .get(), refetched, now carrying only the "published" tag.
+    published = true;
+    await client.post.revalidate();
+    await client.post.get();
+    expect(getPost).toHaveBeenCalledTimes(2);
+
+    // A mutation invalidating "draft" — a tag the post no longer carries —
+    // must not evict the now-published post from the cache.
+    await client.touchDraft.post().revalidated;
+    await client.post.get();
+    expect(getPost).toHaveBeenCalledTimes(2);
+  });
+
+  test("debounce", async () => {
+    vi.useFakeTimers();
+    const minTTL = 1000;
+    const debounceClient = createFetchClient<typeof api.routes>(
+      "https://example.com/api",
+      { fetch, minTTL },
+    );
+    try {
+      const cb = vi.fn();
+      const observable = debounceClient.books.get();
+      observable.subscribe(cb);
+      await observable;
+
+      await debounceClient.books.revalidate();
+      expect(cb).toHaveBeenCalledTimes(1);
+
+      await debounceClient.books.revalidate();
+      expect(cb).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(minTTL);
+      expect(cb).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("a single invalidation does not self-repeat after minTTL", async () => {
+    // Regression check: PubSub.publish() unconditionally re-publishes the
+    // same urls via setTimeout after `minTTL`, even when no second
+    // invalidation happened. A single revalidate() should only notify
+    // subscribers once — it must not fire again on its own once minTTL
+    // elapses.
+    vi.useFakeTimers();
+    const minTTL = 1000;
+    const debounceClient = createFetchClient<typeof api.routes>(
+      "https://example.com/api",
+      { fetch, minTTL },
+    );
+    try {
+      const cb = vi.fn();
+      const observable = debounceClient.books.get();
+      observable.subscribe(cb);
+      await observable;
+
+      await debounceClient.books.revalidate();
+      expect(cb).toHaveBeenCalledTimes(1);
+
+      // No further invalidation — waiting out minTTL must not trigger
+      // another notification on its own.
+      await vi.advanceTimersByTimeAsync(minTTL);
+      expect(cb).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

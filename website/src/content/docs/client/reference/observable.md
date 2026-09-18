@@ -9,7 +9,7 @@ description: "The Observable type augments GET promises with a subscribe() metho
 
 ```ts
 export type Observable<T> = {
-  readonly queryKey?: object;
+  readonly queryKey?: string;
   subscribe(callback: (value: Promise<T>) => void): () => void;
 };
 ```
@@ -30,16 +30,16 @@ const unsubscribe = result.subscribe((next) => {
 
 ## `queryKey`
 
-The fetch client supplies an opaque object identifying the cached query. It stays the same across refresh promises, including queued revalidations. Different URLs (including query parameters), client instances, and evicted/recreated entries receive different objects. Compare it by reference; do not serialize it or use response data as a key.
+The fetch client supplies the request URL as `queryKey`, identifying the cached query. Compare it by value; different URLs (including query parameters) have different keys.
 
-`useQuery` uses this identity to keep resolved data visible during background refreshes. It is optional for custom observables: without it, the observable promise itself identifies the query, preserving the original behavior.
+`useQuery` uses this identity to keep resolved data visible during background refreshes. It is optional for custom observables: without it, the observable promise itself identifies the query.
 
 ## `subscribe(callback)`
 
-- **`callback`** — invoked with a `Promise<T>` each time a new value for this URL becomes available. The callback receives a promise (not a resolved value) because the fresh data may still be loading; awaiting it also lets you observe errors.
+- **`callback`** — invoked with a `Promise<T>` each time the cache entry for this URL is invalidated and re-fetched. The callback receives a promise (not a resolved value) because the fresh data may still be loading; awaiting it also lets you observe errors.
 - **Returns** — an unsubscribe function. Call it to stop receiving updates.
 
-Subscriptions are what keep the cache entry alive. While at least one subscriber is registered, the client keeps the entry, schedules background revalidations based on the server's `X-TAPI-Expires-At` header, and applies tag-based invalidations. When the last subscriber unsubscribes, the entry is scheduled for cleanup after `minTTL`.
+Subscribing does **not** push the current value immediately — you already have it from the `.get()` promise you subscribed on. The callback only fires later, when something invalidates the URL: a tag-matching mutation, an explicit `.revalidate()` call, or a scheduled TTL-based revalidation.
 
 ```ts
 const result = client.todos.get();
@@ -54,9 +54,7 @@ const unsubscribe = result.subscribe((next) => {
 unsubscribe();
 ```
 
-:::tip
-If a newer value arrives between the moment `.get()` returns the observable and the moment you call `.subscribe()`, the client notifies your callback immediately with that newer value, so you never miss an update due to a race.
-:::
+Unlike earlier versions of this client, subscribing does not keep the cache entry alive by itself — entries are only removed by an error, an explicit invalidation, or TTL expiry, regardless of whether anyone is subscribed.
 
 ## Relationship to `@toapi/react`
 

@@ -20,7 +20,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "release": "pnpm run build && pnpm publish --no-git-checks",
-    "test": "vitest"
+    "test": "vitest run"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.1",
