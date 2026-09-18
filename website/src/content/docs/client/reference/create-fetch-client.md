@@ -44,7 +44,7 @@ The base URL of your API server (e.g., `https://example.com/api`). Every request
 | Property           | Type                                                    | Default                            | Description                                                                                                                                       |
 | ------------------ | ------------------------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `fetch`            | `(url: string, init: RequestInit) => Promise<Response>` | global `fetch`                     | Custom fetch implementation. Useful for mocking, server-side rendering, or adding global middleware/interceptors.                                 |
-| `minTTL`           | `number`                                                | `5000`                             | Milliseconds a cache entry with no active subscribers is retained before being dropped.                                                           |
+| `minTTL`           | `number`                                                | `5000`                             | Milliseconds within which repeated invalidations of the same URL are debounced into a single revalidation.                                        |
 | `maxOverdueTTL`    | `number`                                                | `1000`                             | Upper bound (ms) of the random jitter added when scheduling background revalidations, to avoid stampedes.                                         |
 | `logger`           | [`Logger`](#logger)                                     | `console`                          | Object with an optional `error(err)` method used to report fetch/revalidation errors.                                                             |
 | `invalidationsUrl` | `string \| false`                                       | `apiUrl + "/__tapi/invalidations"` | URL of the server-sent invalidation stream. Pass `false` to disable server-push revalidation entirely, or a string to point at a custom endpoint. |
@@ -104,7 +104,7 @@ The client caches in-flight and resolved `GET` requests by URL. If you call `cli
 
 ### Tag-based revalidation
 
-The client tracks cache tags sent by the server via the `X-TAPI-Tags` header on `GET` responses (specified server-side with `cache: { tags: [...] }`). When a mutation response includes tags matching cached `GET` requests, those requests are invalidated and re-fetched if they have active subscribers. The client can also receive tags pushed from the server over the `invalidationsUrl` stream.
+The client tracks cache tags sent by the server via the `X-TAPI-Tags` header on `GET` responses (specified server-side with `cache: { tags: [...] }`). When a mutation response includes tags matching cached `GET` requests, those cache entries are dropped and, if they have active subscribers, re-fetched immediately; otherwise they're simply re-fetched on their next `.get()` call. The client can also receive tags pushed from the server over the `invalidationsUrl` stream.
 
 ### Subscriptions
 
