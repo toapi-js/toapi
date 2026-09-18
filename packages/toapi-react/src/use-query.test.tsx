@@ -7,7 +7,7 @@ import {
 } from "@toapi/server";
 import { act, render, screen } from "@testing-library/react";
 import { Suspense } from "react";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { z } from "zod/v4";
 import { useQuery } from "./use-query.js";
 
@@ -39,8 +39,12 @@ describe("useQuery", () => {
     });
 
   const handler = createRequestHandler(api);
+  const logger = {
+    info: vi.fn(),
+  };
   const client = createFetchClient<typeof api.routes>("http://localhost", {
     fetch: (url, init) => handler(new Request(url, init)),
+    logger,
   });
 
   test("Without Query", async () => {
@@ -156,6 +160,7 @@ describe("useQuery", () => {
         "http://localhost:3000",
         {
           fetch: (url, init) => handler(new Request(url, init)),
+          logger,
         },
       );
 
