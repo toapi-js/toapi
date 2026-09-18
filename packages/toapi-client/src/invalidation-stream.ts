@@ -76,7 +76,7 @@ async function fetchInvalidationStream({
 
       // invalidate everything in the cache, it might have gone stale while we were not listening
       await onConnect();
-      info("Invalidations stream connection established");
+      info("Invalidation stream connection established");
 
       let buffer = "";
       const decoder = new TextDecoder();
