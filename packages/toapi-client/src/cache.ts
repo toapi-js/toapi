@@ -30,7 +30,6 @@ export class Cache {
   }
 
   public set(url: string, entry: CacheEntry) {
-    const oldEntry = this.storage.get(url);
     this.storage.set(url, entry);
 
     entry.data.catch((error) => {
