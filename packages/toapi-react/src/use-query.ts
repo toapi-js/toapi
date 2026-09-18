@@ -8,6 +8,7 @@ interface Options {
 }
 
 export function useQuery<T>(
+  // TODO remove the useless function-form in next major release
   query: ObservablePromise<T> | (() => ObservablePromise<T>),
   { startTransition = React.startTransition }: Options = {},
 ) {
