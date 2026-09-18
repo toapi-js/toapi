@@ -9,11 +9,11 @@ interface Options {
 
 export function useQuery<T>(
   query: ObservablePromise<T> | (() => ObservablePromise<T>),
-  { startTransition = React.startTransition }: Options = {}
+  { startTransition = React.startTransition }: Options = {},
 ) {
   const observable = React.useMemo(
     typeof query === "function" ? query : () => query,
-    [query]
+    [query],
   );
   // The client keeps queryKey stable for the lifetime of a cached query,
   // while each refresh returns a new promise. Comparing promises would mistake
@@ -21,7 +21,7 @@ export function useQuery<T>(
   // Custom observables without a key retain their existing identity semantics.
   const source = observable.queryKey ?? observable;
   const [state, setState] = React.useState<{
-    source: object;
+    source: unknown;
     value: T;
   } | null>(null);
 
