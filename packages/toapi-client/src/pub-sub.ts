@@ -8,7 +8,7 @@ interface Options {
 
 export class PubSub {
   private subscriptions = new Set<Subscription>();
-  private debounceTimeouts = new Map<string, NodeJS.Timeout>();
+  private debounceTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
   private minTTL: number;
 
   constructor(options: Options) {
