@@ -1,4 +1,5 @@
 import {
+  CONNECT_POST_EVENT,
   INVALIDATION_POST_EVENT,
   TAGS_CONTENT_TYPE,
   type Logger,
@@ -64,14 +65,16 @@ export async function listenForInvalidations({
   logger.info("Invalidation Stream Connection Established");
 
   try {
-    const tags = await expireAll();
+    await expireAll();
     const clients = await self.clients.matchAll();
     for (const client of clients) {
-      client.postMessage({ type: INVALIDATION_POST_EVENT, tags });
+      client.postMessage({ type: CONNECT_POST_EVENT });
     }
     logger.info("Marked all cached entries as expired");
-  } catch {
-    logger.warn("Failed to expire existing cache entries");
+  } catch (error) {
+    const formattedError =
+      error instanceof Error ? `${error.name} ${error.message}` : String(error);
+    logger.warn(`Failed to expire existing cache entries: ${formattedError}`);
   }
 
   try {

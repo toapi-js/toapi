@@ -53,7 +53,7 @@ export async function storeCacheEntry(req: Request, res: Response) {
   await new Promise<void>(async (resolve, reject) => {
     const tx = metaDb.transaction(
       [META_STORE_NAME, TAGS_STORE_NAME],
-      "readwrite"
+      "readwrite",
     );
     tx.oncomplete = () => resolve();
     tx.onerror = () =>
@@ -82,7 +82,7 @@ export async function deleteCacheEntry(req: Request) {
   await new Promise<void>((resolve, reject) => {
     const tx = metaDb.transaction(
       [META_STORE_NAME, TAGS_STORE_NAME],
-      "readwrite"
+      "readwrite",
     );
     tx.oncomplete = () => resolve();
     tx.onerror = () =>
@@ -101,7 +101,7 @@ export async function deleteCacheEntry(req: Request) {
           const urls: string[] = req.result ?? [];
           tagsStore.put(
             urls.filter((u) => u !== url),
-            tag
+            tag,
           );
         };
       }
@@ -135,7 +135,7 @@ export async function invalidateTags(tags: string[]) {
     const deletes: Promise<boolean>[] = [];
     const tx = metaDb.transaction(
       [TAGS_STORE_NAME, META_STORE_NAME],
-      "readwrite"
+      "readwrite",
     );
     tx.oncomplete = async () => {
       await Promise.all(deletes);
@@ -146,9 +146,9 @@ export async function invalidateTags(tags: string[]) {
     const tagsStore = tx.objectStore(TAGS_STORE_NAME);
     const metaStore = tx.objectStore(META_STORE_NAME);
     for (const tag of tags) {
-      const req = tagsStore.get(tag);
-      req.onsuccess = () => {
-        const urls: string[] = req.result ?? [];
+      const tagRequest = tagsStore.get(tag);
+      tagRequest.onsuccess = () => {
+        const urls: string[] = tagRequest.result ?? [];
         for (const url of urls) {
           metaStore.delete(url);
           deletes.push(cache.delete(url));
@@ -162,25 +162,12 @@ export async function invalidateTags(tags: string[]) {
 export async function expireAll() {
   const metaDb = await openCacheMetaDB();
 
-  return new Promise<string[]>((resolve, reject) => {
-    const tags = new Set<string>();
-
+  return new Promise<void>((resolve, reject) => {
     const tx = metaDb.transaction([META_STORE_NAME], "readwrite");
-    tx.oncomplete = () => resolve(Array.from(tags));
+    tx.oncomplete = () => resolve();
     tx.onerror = () => reject(new Error(`Failed to expire all cache entries`));
 
     const metaStore = tx.objectStore(META_STORE_NAME);
-    const cursorRequest = metaStore.openCursor();
-    cursorRequest.onsuccess = () => {
-      const cursor = cursorRequest.result;
-      if (!cursor) return;
-      const value: CacheMeta = cursor.value;
-      value.expiresAt = Date.now();
-      for (const tag of value.tags) {
-        tags.add(tag);
-      }
-      metaStore.put(value, cursor.key);
-      cursor.continue();
-    };
+    metaStore.clear();
   });
 }
