@@ -11,6 +11,7 @@ export interface CacheEntry {
 interface Options {
   maxOverdueTTL?: number;
   logger?: Logger;
+  minTTL: number;
   pubSub: PubSub;
 }
 
@@ -20,6 +21,7 @@ export class Cache {
   private storage = new Map<string, CacheEntry>();
   private tagIndex = new Map<string, Set<string>>();
   private maxOverdueTTL: number;
+  private minTTL: number;
   private errorLog: (error: unknown) => void | Promise<void>;
   private pubSub: PubSub;
 
@@ -27,13 +29,18 @@ export class Cache {
     this.maxOverdueTTL = options.maxOverdueTTL ?? DEFAULT_MAX_OVERDUE_TTL;
     this.errorLog = options.logger?.error ?? console.error;
     this.pubSub = options.pubSub;
+    this.minTTL = options.minTTL;
   }
 
   public set(url: string, entry: CacheEntry) {
     this.storage.set(url, entry);
 
     entry.data.catch((error) => {
-      this.storage.delete(url);
+      setTimeout(() => {
+        if (this.storage.get(url) === entry) {
+          this.storage.delete(url);
+        }
+      }, this.minTTL);
       return this.errorLog(error);
     });
 

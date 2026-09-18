@@ -1,9 +1,7 @@
 type Subscription = (urls: Set<string>) => Promise<void>;
 
-const DEFAULT_MIN_TTL = 5 * 1000;
-
 interface Options {
-  minTTL?: number;
+  minTTL: number;
 }
 
 export class PubSub {
@@ -13,7 +11,7 @@ export class PubSub {
   private minTTL: number;
 
   constructor(options: Options) {
-    this.minTTL = options.minTTL ?? DEFAULT_MIN_TTL;
+    this.minTTL = options.minTTL;
   }
 
   subscribe(callback: Subscription) {

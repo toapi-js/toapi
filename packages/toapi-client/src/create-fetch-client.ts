@@ -22,19 +22,24 @@ interface Options {
   invalidationsUrl?: string | false;
 }
 
+const DEFAULT_MIN_TTL = 100;
+
 export function createFetchClient<
   Routes extends Record<BasePath, MaybePromise<BaseRoute>>,
 >(apiUrl: string, options: Options = {}) {
   const fetch = options.fetch ?? globalFetch;
 
+  const minTTL = options?.minTTL ?? DEFAULT_MIN_TTL;
+
   const pubSub = new PubSub({
-    minTTL: options?.minTTL,
+    minTTL,
   });
 
   const cache = new Cache({
     maxOverdueTTL: options.maxOverdueTTL,
     logger: options.logger,
     pubSub,
+    minTTL,
   });
 
   const invalidationsUrl =

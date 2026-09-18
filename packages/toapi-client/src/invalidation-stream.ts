@@ -60,6 +60,7 @@ async function fetchInvalidationStream({
   if (!invalidationsUrl) return;
 
   const warn = logger?.warn ?? console.warn;
+  const info = logger?.info ?? console.info;
 
   const MAX_ATTEMPTS = 500;
   for (let retry = 0; retry < MAX_ATTEMPTS; retry++) {
@@ -75,6 +76,7 @@ async function fetchInvalidationStream({
 
       // invalidate everything in the cache, it might have gone stale while we were not listening
       await onConnect();
+      info("Invalidations stream connection established");
 
       let buffer = "";
       const decoder = new TextDecoder();
