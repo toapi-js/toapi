@@ -22,6 +22,8 @@ export function buildObservable(
   const { data } = request(options);
 
   function subscribe(callback: Subscription) {
+    const { data } = request(options);
+    callback(data);
     return pubSub.subscribe(async (invalidUrls) => {
       if (invalidUrls.has(url)) {
         const { data } = request(options);
