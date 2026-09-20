@@ -14,29 +14,12 @@ export function useQuery<T>(
 ) {
   const observable = typeof query === "function" ? query() : query;
 
-  const source = observable.queryKey ?? observable;
+  const queryKey = observable.queryKey ?? null;
   const [state, setState] = React.useState<{
-    source: unknown;
+    promise: Promise<T>;
+    queryKey: string | null;
     value: T;
   } | null>(null);
-
-  React.useEffect(() => {
-    // TODO this breaks the React.use contract
-    if (state) return;
-    (async () => {
-      try {
-        const initialValue = await observable;
-
-        setState(
-          (state) =>
-            state ?? {
-              value: initialValue,
-              source,
-            },
-        );
-      } catch {}
-    })();
-  }, [source]);
 
   React.useEffect(() => {
     let active = true;
@@ -46,7 +29,7 @@ export function useQuery<T>(
           const value = await next;
           // A late update from a subscription we have already left behind must
           // not overwrite the current one.
-          if (active) setState({ source, value });
+          if (active) setState({ promise: next, queryKey, value });
         } catch {}
       });
     });
@@ -54,9 +37,19 @@ export function useQuery<T>(
       active = false;
       unsubscribe();
     };
-  }, [source, startTransition]);
+  }, [queryKey, startTransition]);
 
-  return state !== null && state.source === source
-    ? state.value
-    : React.use(observable);
+  if (!state) {
+    return React.use(observable);
+  }
+
+  if (state.queryKey !== observable.queryKey) {
+    return React.use(observable);
+  }
+
+  if (state.promise === observable) {
+    return React.use(observable);
+  }
+
+  return state.value;
 }

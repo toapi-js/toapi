@@ -70,13 +70,13 @@ describe("createFetchClient", () => {
     const promise = client.books.get();
     const unsubscribe = promise.subscribe(cb);
     await promise;
-    expect(cb).toHaveBeenCalledTimes(0);
-    await client.books.revalidate();
     expect(cb).toHaveBeenCalledTimes(1);
+    await client.books.revalidate();
+    expect(cb).toHaveBeenCalledTimes(2);
     // Regression check: an unsubscribed callback must stop receiving updates.
     unsubscribe();
     await client.books.revalidate();
-    expect(cb).toHaveBeenCalledTimes(1);
+    expect(cb).toHaveBeenCalledTimes(2);
   });
 
   test("tag-based revalidation", async () => {
@@ -85,9 +85,9 @@ describe("createFetchClient", () => {
     promise.subscribe(cb);
     const data = await promise;
     expect(data.id).toEqual("1");
-    expect(cb).toHaveBeenCalledTimes(0);
-    await client.movies.post({ id: "3", title: "Movie 3" }).revalidated;
     expect(cb).toHaveBeenCalledTimes(1);
+    await client.movies.post({ id: "3", title: "Movie 3" }).revalidated;
+    expect(cb).toHaveBeenCalledTimes(2);
   });
 
   test("wildcard route", async () => {
@@ -269,7 +269,7 @@ describe("createFetchClient", () => {
     unsubscribe();
 
     // Delete invalidates the "thing" tag, so the subscriber sees one update.
-    expect(sub).toHaveBeenCalledTimes(1);
+    expect(sub).toHaveBeenCalledTimes(2);
     expect(mockLogger.error).toHaveBeenCalledWith(
       new HttpError(404, "Not Found"),
     );
@@ -342,13 +342,13 @@ describe("createFetchClient", () => {
       await observable;
 
       await debounceClient.books.revalidate();
-      expect(cb).toHaveBeenCalledTimes(1);
+      expect(cb).toHaveBeenCalledTimes(2);
 
       await debounceClient.books.revalidate();
-      expect(cb).toHaveBeenCalledTimes(1);
+      expect(cb).toHaveBeenCalledTimes(2);
 
       await vi.advanceTimersByTimeAsync(minTTL);
-      expect(cb).toHaveBeenCalledTimes(2);
+      expect(cb).toHaveBeenCalledTimes(3);
     } finally {
       vi.useRealTimers();
     }
@@ -373,12 +373,12 @@ describe("createFetchClient", () => {
       await observable;
 
       await debounceClient.books.revalidate();
-      expect(cb).toHaveBeenCalledTimes(1);
+      expect(cb).toHaveBeenCalledTimes(2);
 
       // No further invalidation — waiting out minTTL must not trigger
       // another notification on its own.
       await vi.advanceTimersByTimeAsync(minTTL);
-      expect(cb).toHaveBeenCalledTimes(1);
+      expect(cb).toHaveBeenCalledTimes(2);
     } finally {
       vi.useRealTimers();
     }
