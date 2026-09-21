@@ -1,6 +1,6 @@
 {
   "name": "@toapi/vite-plugin",
-  "version": "3.0.0",
+  "version": "2.0.2",
   "author": {
     "name": "Michel Smola",
     "email": "michel.smola@farbenmeer.de"
