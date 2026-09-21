@@ -1,5 +1,12 @@
 # @toapi/react
 
+## 1.3.0
+
+### Patch Changes
+
+- Updated dependencies [36be6c8]
+  - @toapi/common@1.3.0
+
 ## 1.2.5
 
 ### Patch Changes

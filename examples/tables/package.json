@@ -1,6 +1,6 @@
 {
   "name": "@toapi-js/toapi-example-tables",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "type": "module",
   "private": true,
   "scripts": {

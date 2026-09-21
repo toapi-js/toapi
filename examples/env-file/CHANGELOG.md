@@ -1,5 +1,15 @@
 # @farbenmeer/bunny-example-env-file
 
+## 0.1.7
+
+### Patch Changes
+
+- Updated dependencies [36be6c8]
+  - @toapi/client@1.3.0
+  - @toapi/server@1.3.0
+  - @toapi/react@1.3.0
+  - @toapi/vite-plugin@3.0.0
+
 ## 0.1.6
 
 ### Patch Changes

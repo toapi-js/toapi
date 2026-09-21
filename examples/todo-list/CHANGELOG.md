@@ -1,5 +1,16 @@
 # @farbenmeer/bunny-boilerplate
 
+## 0.3.6
+
+### Patch Changes
+
+- Updated dependencies [36be6c8]
+  - @toapi/client@1.3.0
+  - @toapi/worker@1.3.0
+  - @toapi/server@1.3.0
+  - @toapi/react@1.3.0
+  - @toapi/vite-plugin@3.0.0
+
 ## 0.3.5
 
 ### Patch Changes
