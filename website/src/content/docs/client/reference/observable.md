@@ -39,7 +39,7 @@ The fetch client supplies the request URL as `queryKey`, identifying the cached 
 - **`callback`** — invoked with a `Promise<T>` each time the cache entry for this URL is invalidated and re-fetched. The callback receives a promise (not a resolved value) because the fresh data may still be loading; awaiting it also lets you observe errors.
 - **Returns** — an unsubscribe function. Call it to stop receiving updates.
 
-Subscribing does **not** push the current value immediately — you already have it from the `.get()` promise you subscribed on. The callback only fires later, when something invalidates the URL: a tag-matching mutation, an explicit `.revalidate()` call, or a scheduled TTL-based revalidation.
+Subscribing pushes the current value immediately. The callback then fires again when something invalidates the URL: a tag-matching mutation, an explicit `.revalidate()` call, or a scheduled TTL-based revalidation.
 
 ```ts
 const result = client.todos.get();
