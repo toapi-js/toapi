@@ -1,5 +1,11 @@
 # @toapi/common
 
+## 1.3.0
+
+### Minor Changes
+
+- 36be6c8: Complete rewrite of the client caching system
+
 ## 1.2.5
 
 ### Patch Changes

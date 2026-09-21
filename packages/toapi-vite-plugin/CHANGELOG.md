@@ -1,5 +1,11 @@
 # @toapi/vite-plugin
 
+## 3.0.0
+
+### Patch Changes
+
+- @toapi/server@1.3.0
+
 ## 2.0.1
 
 ### Patch Changes
