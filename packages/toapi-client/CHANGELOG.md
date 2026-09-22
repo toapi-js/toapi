@@ -1,5 +1,11 @@
 # @toapi/client
 
+## 1.3.1
+
+### Patch Changes
+
+- 0232c8b: fix dangling revalidation promise
+
 ## 1.3.0
 
 ### Minor Changes
