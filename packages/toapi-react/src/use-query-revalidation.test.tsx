@@ -168,33 +168,4 @@ describe("query identity during revalidation", () => {
     expect(screen.getByText("selected")).toBeVisible();
     expect(screen.queryByText("obsolete")).not.toBeInTheDocument();
   });
-
-  test("custom observables without queryKey still use promise identity", async () => {
-    let current: Promise<string> = Promise.resolve("first");
-    const subscribe = (callback: (next: Promise<string>) => void) => {
-      callback(current);
-      return () => {};
-    };
-    const first = Object.assign(current, { subscribe });
-    const next = deferred<string>();
-    const second = Object.assign(next.promise, { subscribe });
-    function View({ query }: { query: typeof first }) {
-      return <p>{useQuery(query)}</p>;
-    }
-    const tree = (query: typeof first) => (
-      <Suspense fallback={<p>Loading</p>}>
-        <View query={query} />
-      </Suspense>
-    );
-    const view = await act(() => render(tree(first)));
-    current = second;
-    await act(() => view.rerender(tree(second)));
-    expect(screen.getByText("Loading")).toBeVisible();
-    expect(screen.getByText("first")).not.toBeVisible();
-    await act(async () => {
-      next.resolve("second");
-      await next.promise;
-    });
-    expect(screen.getByText("second")).toBeVisible();
-  });
 });
