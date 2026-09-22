@@ -48,8 +48,8 @@ export function useQuery<T>(
     return React.use(initialObservable);
   }
 
-  if (state.promise === observable) {
-    return React.use(observable);
+  if (state.promise === initialObservable) {
+    return React.use(initialObservable);
   }
 
   return state.value;
