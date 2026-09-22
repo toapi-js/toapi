@@ -77,7 +77,7 @@ export function createFetchClient<
     url: string,
     data?: FormData | unknown,
     init: RequestInit = {},
-  ): Promise<any> & Revalidating {
+  ) {
     const headers = new Headers(init.headers);
 
     if (!(data instanceof FormData) && !headers.has("Content-Type")) {
@@ -95,21 +95,23 @@ export function createFetchClient<
       ...init,
       headers,
     });
+
     const body = response.then(handleResponse).catch(async (error) => {
       await options?.logger?.error?.(error);
       throw error;
     });
 
-    const revalidated = response.then(async (res) => {
-      await Promise.all([
-        body,
-        cache.invalidateTags(res.headers.get(TAGS_HEADER)?.split(" ") ?? []),
-      ]);
-    });
+    const revalidated = response.then((res) =>
+      cache.invalidateTags(res.headers.get(TAGS_HEADER)?.split(" ") ?? []),
+    );
 
-    return Object.assign(body, {
-      revalidated,
-    });
+    return Object.defineProperty(body, "revalidated", {
+      get: async () => {
+        const [data] = await Promise.all([body, revalidated]);
+
+        return data;
+      },
+    }) as Promise<any> & Revalidating<any>;
   }
 
   return new Proxy(() => {}, {
@@ -135,7 +137,7 @@ interface ProxyMethods {
     url: string,
     data: FormData | unknown,
     init?: RequestInit,
-  ): Promise<unknown> & Revalidating;
+  ): Promise<unknown> & Revalidating<unknown>;
 }
 
 function buildUrl(baseUrl: string, query: unknown) {
