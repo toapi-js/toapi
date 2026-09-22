@@ -1,6 +1,19 @@
 import { createFetchClient } from "@toapi/client";
-import { defineApi, defineHandler, TResponse } from "@toapi/server";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import type { Observable } from "@toapi/common";
+import {
+  createRequestHandler,
+  defineApi,
+  defineHandler,
+  PubSub,
+  TResponse,
+} from "@toapi/server";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { StrictMode, Suspense, useLayoutEffect, useState } from "react";
 import { describe, expect, test, vi } from "vitest";
 import { useQuery } from "./use-query.js";
@@ -167,5 +180,102 @@ describe("query identity during revalidation", () => {
     });
     expect(screen.getByText("selected")).toBeVisible();
     expect(screen.queryByText("obsolete")).not.toBeInTheDocument();
+  });
+
+  test("re-suspends only when the queryKey actually changes", async () => {
+    const cache = new PubSub();
+    const itemHandler = vi.fn(async () =>
+      TResponse.json("item" as string, { cache: { tags: ["item"] } }),
+    );
+    const otherHandler = vi.fn(async () =>
+      TResponse.json("other" as string, { cache: { tags: ["other"] } }),
+    );
+    const api = defineApi({ cache })
+      .route("/item", {
+        GET: defineHandler({ authorize: () => true }, itemHandler),
+      })
+      .route("/other", {
+        GET: defineHandler({ authorize: () => true }, otherHandler),
+      });
+    const requestHandler = createRequestHandler(api);
+    const logger = {
+      info: vi.fn(),
+    };
+    const client = createFetchClient<typeof api.routes>("http://localhost", {
+      fetch: (url, init) => requestHandler(new Request(url, init)),
+      logger,
+    });
+    await waitFor(() =>
+      expect(logger.info).toHaveBeenCalledWith(
+        "Invalidations stream connection established",
+      ),
+    );
+
+    type Query = Promise<string> & Observable<string>;
+    function View({ query }: { query: Query }) {
+      return <p>{useQuery(query)}</p>;
+    }
+    const tree = (query: Query) => (
+      <Suspense fallback={<p>Loading</p>}>
+        <View query={query} />
+      </Suspense>
+    );
+
+    // suspend initially
+    const pendingFirst = deferred<string>();
+    itemHandler.mockImplementationOnce(async () => {
+      return TResponse.json(await pendingFirst.promise, {
+        cache: { tags: ["item"] },
+      });
+    });
+    const view = await act(() => render(tree(client.item.get())));
+    expect(screen.getByText("Loading")).toBeVisible();
+    await act(async () => {
+      pendingFirst.resolve("first");
+      await client.item.get();
+    });
+    expect(itemHandler).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("first")).toBeVisible();
+
+    // wait for the invalidation stream to connect before invalidating tags
+    await vi.waitFor(() => expect(cache.subscribers.size).toBeGreaterThan(0));
+
+    // the route is revalidated: invalidating the tag via the server's PubSub
+    // propagates to the client and the component updates without suspending.
+    const pendingSecond = deferred<string>();
+    itemHandler.mockImplementationOnce(async () => {
+      return TResponse.json(await pendingSecond.promise, {
+        cache: { tags: ["item"] },
+      });
+    });
+    await act(async () => {
+      await cache.delete(["item"]);
+    });
+    expect(screen.queryByText("Loading")).not.toBeInTheDocument();
+
+    await act(async () => pendingSecond.resolve("updated"));
+    expect(await screen.findByText("updated")).toBeVisible();
+
+    // never re-suspend otherwise: a re-render passes a brand new observable
+    // for the same query.
+    await act(() => view.rerender(tree(client.item.get())));
+    expect(screen.queryByText("Loading")).not.toBeInTheDocument();
+    expect(screen.getByText("updated")).toBeVisible();
+
+    // re-suspend when the queryKey changes: a genuinely different query must
+    // still show the fallback while its own promise is pending.
+    const pendingOther = deferred<string>();
+    otherHandler.mockImplementationOnce(async () => {
+      return TResponse.json(await pendingOther.promise, {
+        cache: { tags: ["other"] },
+      });
+    });
+    const other = client.other.get();
+    await act(() => view.rerender(tree(other)));
+    expect(screen.getByText("Loading")).toBeVisible();
+    await act(async () => {
+      pendingOther.resolve("other");
+    });
+    expect(screen.getByText("other")).toBeVisible();
   });
 });
