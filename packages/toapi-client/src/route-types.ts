@@ -9,5 +9,5 @@ type T = GetRoute<string>;
 export type PostRoute<R, Q = unknown, B = unknown> = (
   query: Q | FormData,
   body: B | FormData,
-  req?: RequestInit
+  req?: RequestInit,
 ) => Promise<R>;

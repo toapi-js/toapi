@@ -13,11 +13,12 @@ export function useQuery<T>(
   { startTransition = React.startTransition }: Options = {},
 ) {
   const observable = typeof query === "function" ? query() : query;
+  const queryKey = observable.queryKey;
+  const initialObservable = React.useMemo(() => observable, [queryKey]);
 
-  const queryKey = observable.queryKey ?? null;
   const [state, setState] = React.useState<{
     promise: Promise<T>;
-    queryKey: string | null;
+    queryKey: string;
     value: T;
   } | null>(null);
 
@@ -43,8 +44,8 @@ export function useQuery<T>(
     return React.use(observable);
   }
 
-  if (state.queryKey !== observable.queryKey) {
-    return React.use(observable);
+  if (state.queryKey !== initialObservable.queryKey) {
+    return React.use(initialObservable);
   }
 
   if (state.promise === observable) {
