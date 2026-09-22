@@ -57,8 +57,8 @@ export type QueryWithoutBody<
         req?: RequestInit,
       ) => Promise<ResponseType<Handler>> & Observable<ResponseType<Handler>>;
 
-export type Revalidating = {
-  revalidated: Promise<void>;
+export type Revalidating<T> = {
+  revalidated: Promise<T>;
 };
 
 export type MutationWithoutBody<
@@ -69,11 +69,11 @@ export type MutationWithoutBody<
     ? (
         query?: Partial<QueryType<Handler>>,
         req?: RequestInit,
-      ) => Promise<ResponseType<Handler>> & Revalidating
+      ) => Promise<ResponseType<Handler>> & Revalidating<ResponseType<Handler>>
     : (
         query: OptionalizeUndefined<QueryType<Handler>>,
         req?: RequestInit,
-      ) => Promise<ResponseType<Handler>> & Revalidating;
+      ) => Promise<ResponseType<Handler>> & Revalidating<ResponseType<Handler>>;
 
 export type MutationWithBody<
   Handler extends BaseHandler<any, any, any, unknown> | undefined,
@@ -82,7 +82,7 @@ export type MutationWithBody<
   : (
       body?: BodyType<Handler> | FormData,
       req?: RequestInit & { query?: OptionalizeUndefined<QueryType<Handler>> },
-    ) => Promise<ResponseType<Handler>> & Revalidating;
+    ) => Promise<ResponseType<Handler>> & Revalidating<ResponseType<Handler>>;
 
 type QueryType<Handler extends { schema: { __q?: any } } | undefined> =
   NonNullable<NonNullable<Handler>["schema"]["__q"]>;

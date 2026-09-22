@@ -6,6 +6,7 @@ import {
 } from "@toapi/server";
 import { describe, expect, test, vi } from "vitest";
 import { createFetchClient } from "./create-fetch-client.js";
+import { HttpError } from "@toapi/common";
 
 describe("Error Handling", () => {
   const cache = new PubSub();
@@ -17,6 +18,7 @@ describe("Error Handling", () => {
   };
   const api = defineApi({ cache, logger: serverLogger }).route("/throws", {
     GET: defineHandler({ authorize: () => true }, handler),
+    POST: defineHandler({ authorize: () => true }, handler),
   });
   const requestHandler = createRequestHandler(api);
   const clientLogger = {
@@ -33,5 +35,13 @@ describe("Error Handling", () => {
     await expect(observable).rejects.toThrow();
 
     expect(client.throws.get()).toBe(observable);
+  });
+
+  test("Revalidated is no dangling promise", async () => {
+    try {
+      await client.throws.post();
+    } catch (error) {
+      expect(error).toBeInstanceOf(HttpError);
+    }
   });
 });
