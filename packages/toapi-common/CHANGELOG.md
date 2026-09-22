@@ -1,5 +1,11 @@
 # @toapi/common
 
+## 1.3.2
+
+### Patch Changes
+
+- e550f85: queryKey is required, revert to loading state only on real queryKey change
+
 ## 1.3.1
 
 ## 1.3.0
