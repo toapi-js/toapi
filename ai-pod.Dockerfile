@@ -9,6 +9,7 @@ RUN npx playwright install-deps
 ARG HOST_GATEWAY
 ARG AI_POD_VERSION
 RUN curl -fsSL "http://${HOST_GATEWAY}:7822/install/claude.sh" | bash
+RUN curl -fsSL "http://${HOST_GATEWAY}:7822/install/codex.sh" | bash
 
 WORKDIR /app
 
