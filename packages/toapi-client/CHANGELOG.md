@@ -1,5 +1,11 @@
 # @toapi/client
 
+## 1.3.3
+
+### Patch Changes
+
+- af3479f: Consume pending cache invalidations before replaying them so duplicate invalidations stop scheduling timers and notifying subscribers after the debounce period. Replay only pending URLs after unlocking the expired batch, preserving invalidations for multiple URLs.
+
 ## 1.3.2
 
 ### Patch Changes
