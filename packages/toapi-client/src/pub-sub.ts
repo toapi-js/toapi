@@ -30,22 +30,17 @@ export class PubSub {
       }
     }
 
-    const timeout = setTimeout(
-      () =>
-        Promise.all(
-          Array.from(urls).map((url) => {
-            if (this.requestedUrls.has(url)) {
-              this.debounceTimeouts.delete(url);
-              // needs to be refetched
-              return this.publish(urls);
-            } else {
-              // debounce timeout over
-              this.debounceTimeouts.delete(url);
-            }
-          }),
-        ),
-      this.minTTL,
-    );
+    const timeout = setTimeout(() => {
+      const pendingUrls = new Set<string>();
+      for (const url of urls) {
+        this.debounceTimeouts.delete(url);
+        if (this.requestedUrls.delete(url)) {
+          pendingUrls.add(url);
+        }
+      }
+      // Consume pending invalidations and unlock the entire batch before replay.
+      if (pendingUrls.size) return this.publish(pendingUrls);
+    }, this.minTTL);
 
     for (const url of urls) {
       this.debounceTimeouts.set(url, timeout);
