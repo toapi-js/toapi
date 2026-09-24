@@ -1,10 +1,8 @@
-import {
-  SESSION_COOKIE_NAME,
-  TAGS_CONTENT_TYPE,
-} from "@toapi/common";
+import { SESSION_COOKIE_NAME, TAGS_CONTENT_TYPE } from "@toapi/common";
 import type { Cache } from "./cache.js";
 
 const KEEPALIVE_INTERVAL = 10 * 1000;
+const THROTTLE_TIME_MS = 500;
 
 interface Options {
   cache: Cache;
@@ -16,7 +14,10 @@ export function streamRevalidatedTags({ cache }: Options) {
   let unsubscribe = () => {};
   const stream = new ReadableStream({
     async start(controller) {
+      let queue = new Set<string>();
+      let timeout: ReturnType<typeof setTimeout> | null = null;
       const textEncoder = new TextEncoder();
+
       // subscribe to tag invalidations
       unsubscribe = cache.subscribe((tags, meta) => {
         // ignore our own invalidations
@@ -27,8 +28,24 @@ export function streamRevalidatedTags({ cache }: Options) {
           meta.clientId === id
         )
           return;
+
+        for (const tag of tags) queue.add(tag);
+
         // send tags to client
-        controller.enqueue(textEncoder.encode(`${tags.join(" ")}\n`));
+        if (!timeout) {
+          controller.enqueue(
+            textEncoder.encode(`${Array.from(queue).join(" ")}\n`),
+          );
+          queue = new Set();
+
+          timeout = setTimeout(() => {
+            controller.enqueue(
+              textEncoder.encode(`${Array.from(queue).join(" ")}\n`),
+            );
+            queue = new Set();
+            timeout = null;
+          }, THROTTLE_TIME_MS);
+        }
       });
 
       // keepalive. The first one is sent right away so the response headers
