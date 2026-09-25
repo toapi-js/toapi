@@ -60,6 +60,7 @@ export function createRequestHandler(
       return streamRevalidatedTags({
         cache: api.cache,
         config: api.revalidationStreamConfig,
+        req,
       });
     }
 
