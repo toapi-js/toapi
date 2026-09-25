@@ -328,7 +328,7 @@ describe("createFetchClient", () => {
     expect(getPost).toHaveBeenCalledTimes(2);
   });
 
-  test("debounce", async () => {
+  test("force immediate invalidation", async () => {
     vi.useFakeTimers();
     const minTTL = 1000;
     const debounceClient = createFetchClient<typeof api.routes>(
@@ -345,7 +345,7 @@ describe("createFetchClient", () => {
       expect(cb).toHaveBeenCalledTimes(2);
 
       await debounceClient.books.revalidate();
-      expect(cb).toHaveBeenCalledTimes(2);
+      expect(cb).toHaveBeenCalledTimes(3);
 
       await vi.advanceTimersByTimeAsync(minTTL);
       expect(cb).toHaveBeenCalledTimes(3);

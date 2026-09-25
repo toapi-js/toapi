@@ -49,7 +49,7 @@ export function createFetchClient<
 
   listenForInvalidations({
     fetch,
-    onInvalidate: (tags) => cache.invalidateTags(tags),
+    onInvalidate: (tags) => cache.invalidateTags(tags, false),
     onConnect: () => cache.invalidateAll(),
     logger: options.logger,
     invalidationsUrl,
@@ -69,7 +69,7 @@ export function createFetchClient<
   }
 
   async function revalidate(url: string) {
-    await cache.invalidateUrl(url);
+    await cache.invalidateUrl(url, true);
   }
 
   function mutate(
@@ -102,7 +102,10 @@ export function createFetchClient<
     });
 
     const revalidated = response.then((res) =>
-      cache.invalidateTags(res.headers.get(TAGS_HEADER)?.split(" ") ?? []),
+      cache.invalidateTags(
+        res.headers.get(TAGS_HEADER)?.split(" ") ?? [],
+        true,
+      ),
     );
 
     return Object.defineProperty(body, "revalidated", {

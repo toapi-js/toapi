@@ -70,7 +70,7 @@ export class Cache {
             const cached = this.storage.get(url);
             if (cached !== entry) return;
             this.storage.delete(url);
-            this.pubSub.publish(new Set([url]));
+            this.pubSub.publish(new Set([url]), false);
           },
           Math.max(0, timeUntilRevalidation),
         );
@@ -82,12 +82,12 @@ export class Cache {
     return this.storage.get(url);
   }
 
-  public invalidateUrl(url: string) {
+  public invalidateUrl(url: string, force: boolean) {
     this.storage.delete(url);
-    return this.pubSub.publish(new Set([url]));
+    return this.pubSub.publish(new Set([url]), force);
   }
 
-  public invalidateTags(tags: string[]) {
+  public invalidateTags(tags: string[], force: boolean) {
     const urls = new Set<string>();
     for (const tag of tags) {
       const taggedUrls = this.tagIndex.get(tag);
@@ -101,13 +101,13 @@ export class Cache {
         urls.add(url);
       }
     }
-    return this.pubSub.publish(urls);
+    return this.pubSub.publish(urls, force);
   }
 
   public invalidateAll() {
     const urls = new Set(this.storage.keys());
     this.storage.clear();
     this.tagIndex.clear();
-    return this.pubSub.publish(urls);
+    return this.pubSub.publish(urls, false);
   }
 }

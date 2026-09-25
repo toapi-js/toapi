@@ -21,7 +21,19 @@ export class PubSub {
     };
   }
 
-  async publish(urls: Set<string>) {
+  async publish(urls: Set<string>, force: boolean) {
+    if (force) {
+      for (const url of urls) {
+        const timeout = this.debounceTimeouts.get(url);
+        clearTimeout(timeout);
+        this.debounceTimeouts.delete(url);
+      }
+      await Promise.all(
+        this.subscriptions.values().map((callback) => callback(urls)),
+      );
+      return;
+    }
+
     for (const url of urls) {
       if (this.debounceTimeouts.has(url)) {
         // debounced, mark as requested and ignore now
@@ -39,7 +51,7 @@ export class PubSub {
         }
       }
       // Consume pending invalidations and unlock the entire batch before replay.
-      if (pendingUrls.size) return this.publish(pendingUrls);
+      if (pendingUrls.size) return this.publish(pendingUrls, false);
     }, this.minTTL);
 
     for (const url of urls) {
