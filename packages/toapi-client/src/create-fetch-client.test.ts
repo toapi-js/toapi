@@ -328,7 +328,7 @@ describe("createFetchClient", () => {
     expect(getPost).toHaveBeenCalledTimes(2);
   });
 
-  test("debounce", async () => {
+  test("force immediate invalidation", async () => {
     vi.useFakeTimers();
     const minTTL = 1000;
     const debounceClient = createFetchClient<typeof api.routes>(
