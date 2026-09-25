@@ -11,11 +11,11 @@ interface Options {
 export function streamRevalidatedTags({ cache }: Options) {
   const id = crypto.randomUUID();
   let interval: ReturnType<typeof setInterval> | null = null;
+  let timeout: ReturnType<typeof setTimeout> | null = null;
   let unsubscribe = () => {};
   const stream = new ReadableStream({
     async start(controller) {
       let queue = new Set<string>();
-      let timeout: ReturnType<typeof setTimeout> | null = null;
       const textEncoder = new TextEncoder();
 
       // subscribe to tag invalidations
@@ -57,6 +57,7 @@ export function streamRevalidatedTags({ cache }: Options) {
     },
     cancel() {
       if (interval) clearInterval(interval);
+      if (timeout) clearTimeout(timeout);
       unsubscribe();
     },
   });
