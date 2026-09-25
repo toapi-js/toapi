@@ -7,18 +7,22 @@ const DEFAULT_THROTTLE_TIMEOUT = 500;
 export interface RevalidationStreamConfig {
   throttleTimeout?: number;
   keepaliveInterval?: number;
+  filter?: (req: Request) => (tag: string) => boolean;
 }
 
 interface Options {
   cache: Cache;
   config?: RevalidationStreamConfig;
+  req: Request;
 }
 
-export function streamRevalidatedTags({ cache, config = {} }: Options) {
+export function streamRevalidatedTags({ cache, config = {}, req }: Options) {
   const {
     throttleTimeout = DEFAULT_THROTTLE_TIMEOUT,
     keepaliveInterval = DEFAULT_KEEPALIVE_INTERVAL,
+    filter = () => () => true,
   } = config;
+  const filterTag = filter(req);
   const id = crypto.randomUUID();
   let interval: ReturnType<typeof setInterval> | null = null;
   let timeout: ReturnType<typeof setTimeout> | null = null;
@@ -39,10 +43,14 @@ export function streamRevalidatedTags({ cache, config = {} }: Options) {
         )
           return;
 
-        for (const tag of tags) queue.add(tag);
+        for (const tag of tags) {
+          if (filterTag(tag)) {
+            queue.add(tag);
+          }
+        }
 
         // send tags to client
-        if (!timeout) {
+        if (queue.size > 0 && !timeout) {
           controller.enqueue(
             textEncoder.encode(`${Array.from(queue).join(" ")}\n`),
           );

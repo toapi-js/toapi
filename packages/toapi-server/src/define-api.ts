@@ -23,6 +23,7 @@ export function defineApi(options: Options = {}) {
     options?.cache ?? new PubSub(),
     options?.oas,
     options?.logger,
+    options?.revalidationStream,
   );
 }
 

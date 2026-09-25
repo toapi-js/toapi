@@ -7,8 +7,8 @@ import {
 import { defineApi } from "./define-api.js";
 import { defineHandler } from "./define-handler.js";
 import z from "zod";
-import { TResponse } from "@toapi/common";
-import type { Cache } from "./cache.js";
+import { INVALIDATIONS_ROUTE, TResponse } from "@toapi/common";
+import { type Cache, PubSub } from "./cache.js";
 
 describe("compilePathRegex", () => {
   test("match a simple route", () => {
@@ -67,6 +67,30 @@ describe("compilePathRegex", () => {
 });
 
 describe("createRequestHandler", () => {
+  test("applies the configured tag filter to the invalidation stream", async () => {
+    const cache = new PubSub();
+    const request = new Request(`http://localhost:3000${INVALIDATIONS_ROUTE}`, {
+      headers: { "X-Allowed-Tag": "visible" },
+    });
+    const filter = vi.fn((req: Request) => (tag: string) =>
+      tag === req.headers.get("X-Allowed-Tag"),
+    );
+    const handler = createRequestHandler(
+      defineApi({ cache, revalidationStream: { filter } }),
+    );
+    const response = await handler(request);
+    const reader = response.body!.getReader();
+
+    await reader.read(); // initial keepalive
+    await cache.delete(["hidden", "visible"]);
+
+    expect(new TextDecoder().decode((await reader.read()).value)).toBe(
+      "visible\n",
+    );
+    expect(filter).toHaveBeenCalledWith(request);
+    await reader.cancel();
+  });
+
   test("returns 500 for arbitrary errors in handler", async () => {
     const errorHook = vi.fn();
     const sut = createRequestHandler(
