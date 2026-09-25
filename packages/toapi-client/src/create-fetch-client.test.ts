@@ -345,7 +345,7 @@ describe("createFetchClient", () => {
       expect(cb).toHaveBeenCalledTimes(2);
 
       await debounceClient.books.revalidate();
-      expect(cb).toHaveBeenCalledTimes(2);
+      expect(cb).toHaveBeenCalledTimes(3);
 
       await vi.advanceTimersByTimeAsync(minTTL);
       expect(cb).toHaveBeenCalledTimes(3);
