@@ -59,6 +59,7 @@ export function createRequestHandler(
     if (url.pathname === `${basePath}${INVALIDATIONS_ROUTE}`) {
       return streamRevalidatedTags({
         cache: api.cache,
+        config: api.revalidationStreamConfig,
       });
     }
 

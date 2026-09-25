@@ -53,5 +53,5 @@ jobs:
       - run: pnpm install
       - run: pnpm run lint
       - run: pnpm run build
-      - run: pnpm exec playwright install --with-deps
+      - run: pnpm exec playwright install --with-deps --no-progress
       - run: pnpm run test

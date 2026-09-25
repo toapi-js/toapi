@@ -3,6 +3,7 @@ import type { Logger } from "@toapi/common";
 import type { Path as BasePath, StrictParams } from "@toapi/common";
 import type { Route } from "@toapi/common";
 import { type Cache, PubSub } from "./cache.js";
+import type { RevalidationStreamConfig } from "./revalidation-stream.js";
 
 export interface OasInfo {
   title: string;
@@ -13,10 +14,16 @@ interface Options {
   cache?: Cache;
   oas?: OasInfo;
   logger?: Logger;
+  revalidationStream?: RevalidationStreamConfig;
 }
 
 export function defineApi(options: Options = {}) {
-  return new ApiDefinition({}, options?.cache ?? new PubSub(), options?.oas, options?.logger);
+  return new ApiDefinition(
+    {},
+    options?.cache ?? new PubSub(),
+    options?.oas,
+    options?.logger,
+  );
 }
 
 export class ApiDefinition<Routes extends Record<BasePath, unknown>> {
@@ -25,10 +32,11 @@ export class ApiDefinition<Routes extends Record<BasePath, unknown>> {
     public cache: Cache,
     public oas?: OasInfo,
     public logger?: Logger,
+    public revalidationStreamConfig?: RevalidationStreamConfig,
   ) {}
 
   async invalidate(tags: string[]) {
-    await this.cache.delete(tags)
+    await this.cache.delete(tags);
   }
 
   route<
