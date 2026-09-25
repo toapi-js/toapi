@@ -1,5 +1,11 @@
 # @toapi/server
 
+## 1.3.5
+
+### Patch Changes
+
+- 8aca1e8: debounce and dedupe tags stream
+
 ## 1.3.4
 
 ## 1.3.3

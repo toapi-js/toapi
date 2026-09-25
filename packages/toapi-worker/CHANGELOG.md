@@ -1,5 +1,9 @@
 # @toapi/worker
 
+## 1.3.5
+
+No changes in this release.
+
 ## 1.3.4
 
 ## 1.3.3
