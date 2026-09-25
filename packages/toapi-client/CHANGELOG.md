@@ -1,5 +1,11 @@
 # @toapi/client
 
+## 1.3.4
+
+### Patch Changes
+
+- ff532bd: force invalidation immediately on mutation or manual revalidation
+
 ## 1.3.3
 
 ### Patch Changes
