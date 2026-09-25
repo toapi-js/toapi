@@ -9,7 +9,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.12",
-    "@changesets/cli": "^2.29.6",
+    "@changesets/cli": "^3.0.3",
     "@playwright/test": "catalog:",
     "typescript": "^7.0.0"
   },
