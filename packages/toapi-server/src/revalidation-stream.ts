@@ -1,14 +1,24 @@
 import { SESSION_COOKIE_NAME, TAGS_CONTENT_TYPE } from "@toapi/common";
 import type { Cache } from "./cache.js";
 
-const KEEPALIVE_INTERVAL = 10 * 1000;
-const THROTTLE_TIME_MS = 500;
+const DEFAULT_KEEPALIVE_INTERVAL = 10 * 1000;
+const DEFAULT_THROTTLE_TIMEOUT = 500;
+
+export interface RevalidationStreamConfig {
+  throttleTimeout?: number;
+  keepaliveInterval?: number;
+}
 
 interface Options {
   cache: Cache;
+  config?: RevalidationStreamConfig;
 }
 
-export function streamRevalidatedTags({ cache }: Options) {
+export function streamRevalidatedTags({ cache, config = {} }: Options) {
+  const {
+    throttleTimeout = DEFAULT_THROTTLE_TIMEOUT,
+    keepaliveInterval = DEFAULT_KEEPALIVE_INTERVAL,
+  } = config;
   const id = crypto.randomUUID();
   let interval: ReturnType<typeof setInterval> | null = null;
   let timeout: ReturnType<typeof setTimeout> | null = null;
@@ -44,7 +54,7 @@ export function streamRevalidatedTags({ cache }: Options) {
             );
             queue = new Set();
             timeout = null;
-          }, THROTTLE_TIME_MS);
+          }, throttleTimeout);
         }
       });
 
@@ -53,7 +63,7 @@ export function streamRevalidatedTags({ cache }: Options) {
       // fires — consumers skip empty lines, so this is a no-op for them.
       const keepalive = () => controller.enqueue(textEncoder.encode("\n"));
       keepalive();
-      interval = setInterval(keepalive, KEEPALIVE_INTERVAL);
+      interval = setInterval(keepalive, keepaliveInterval);
     },
     cancel() {
       if (interval) clearInterval(interval);
