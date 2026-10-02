@@ -28,8 +28,8 @@
     "outDir": "./dist",
     "declarationDir": "./dist",
     "declaration": true,
-    "declarationMap": true
+    "declarationMap": true,
   },
   "include": ["src"],
-  "exclude": ["**/*.test.ts"]
+  "exclude": ["**/*.test.ts"],
 }

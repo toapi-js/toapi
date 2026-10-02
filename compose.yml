@@ -9,3 +9,9 @@ services:
       POSTGRES_PASSWORD: postgres
     ports:
       - "5432:5432"
+  s3:
+    image: ghcr.io/shyim/local-s3:latest
+    environment:
+      S3_ACCOUNT_ADMIN: toapi:toapi-secret
+    ports:
+      - "9000:9000"

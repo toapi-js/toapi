@@ -13,7 +13,7 @@ It is the reference cache implementation for the Toapi stack and is usually used
 npm install @toapi/cache
 ```
 
-The Redis and Postgres backends need an extra peer dependency (`@redis/client` or `pg` respectively). Both are optional — install only the one you use.
+The Redis and Postgres backends need an extra peer dependency (`@redis/client` or `pg` respectively), and `S3LfsCache` needs `@aws-sdk/client-s3`. All of them are optional — install only the ones you use.
 
 ## Backends
 
@@ -23,6 +23,13 @@ All backends implement the same [`Cache`](/toapi/cache/reference/cache/) interfa
 - **[`FilesystemCache`](/toapi/cache/reference/filesystem-cache/)** — SQLite file-based database. Survives process restarts, suitable for single-host production setups.
 - **[`RedisCache`](/toapi/cache/reference/redis-cache/)** — Redis-backed distributed cache with pub/sub support. The right choice for multi-host deployments.
 - **[`PostgresCache`](/toapi/cache/reference/postgres-cache/)** — PostgreSQL-backed distributed cache using `LISTEN`/`NOTIFY`. For multi-host deployments that already run Postgres and would rather not add Redis.
+
+## Large Attachments
+
+These wrap one of the backends above and change how entries with large attachments are handled:
+
+- **[`S3LfsCache`](/toapi/cache/reference/s3-lfs-cache/)** — Stores attachments above a size cutoff in an S3 bucket and keeps everything else in the wrapped cache.
+- **[`NoLfsCache`](/toapi/cache/reference/no-lfs-cache/)** — Doesn't cache entries with attachments above a size cutoff.
 
 ## Quick Start
 
@@ -70,3 +77,5 @@ See [Caching](/toapi/server/reference/caching/) for the full picture.
 - [FilesystemCache](/toapi/cache/reference/filesystem-cache/) — SQLite file-based backend.
 - [RedisCache](/toapi/cache/reference/redis-cache/) — Redis-backed distributed backend.
 - [PostgresCache](/toapi/cache/reference/postgres-cache/) — PostgreSQL-backed distributed backend.
+- [S3LfsCache](/toapi/cache/reference/s3-lfs-cache/) — offloads large attachments to S3.
+- [NoLfsCache](/toapi/cache/reference/no-lfs-cache/) — skips caching large attachments.
