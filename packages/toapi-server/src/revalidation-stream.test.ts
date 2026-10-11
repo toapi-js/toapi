@@ -11,7 +11,7 @@ describe("revalidation stream", () => {
     const response = streamRevalidatedTags({ cache, req });
 
     expect(
-      response.headers.get("Set-Cookie")?.startsWith(`${SESSION_COOKIE_NAME}=`)
+      response.headers.get("Set-Cookie")?.startsWith(`${SESSION_COOKIE_NAME}=`),
     ).toBeTruthy();
   });
 
@@ -42,8 +42,35 @@ describe("revalidation stream", () => {
     const request = new Request("http://localhost:3000/invalidations", {
       headers: { "X-Allowed-Tag": "visible" },
     });
-    const filter = vi.fn((req: Request) => (tag: string) =>
-      tag === req.headers.get("X-Allowed-Tag"),
+    const filter = vi.fn(
+      (req: Request) => (tag: string) =>
+        tag === req.headers.get("X-Allowed-Tag"),
+    );
+    const response = streamRevalidatedTags({
+      cache,
+      req: request,
+      config: { filter },
+    });
+    const reader = response.body!.getReader();
+
+    await reader.read(); // initial keepalive
+    await cache.delete(["hidden", "visible"]);
+
+    expect(new TextDecoder().decode((await reader.read()).value)).toBe(
+      "visible\n",
+    );
+    expect(filter).toHaveBeenCalledWith(request);
+    await reader.cancel();
+  });
+
+  test("should filter revalidated tags using the stream request and an async filter generator", async () => {
+    const cache = new PubSub();
+    const request = new Request("http://localhost:3000/invalidations", {
+      headers: { "X-Allowed-Tag": "visible" },
+    });
+    const filter = vi.fn(
+      async (req: Request) => (tag: string) =>
+        tag === req.headers.get("X-Allowed-Tag"),
     );
     const response = streamRevalidatedTags({
       cache,

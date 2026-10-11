@@ -1,4 +1,8 @@
-import { SESSION_COOKIE_NAME, TAGS_CONTENT_TYPE } from "@toapi/common";
+import {
+  SESSION_COOKIE_NAME,
+  TAGS_CONTENT_TYPE,
+  type MaybePromise,
+} from "@toapi/common";
 import type { Cache } from "./cache.js";
 
 const DEFAULT_KEEPALIVE_INTERVAL = 10 * 1000;
@@ -7,7 +11,7 @@ const DEFAULT_THROTTLE_TIMEOUT = 500;
 export interface RevalidationStreamConfig {
   throttleTimeout?: number;
   keepaliveInterval?: number;
-  filter?: (req: Request) => (tag: string) => boolean;
+  filter?: (req: Request) => MaybePromise<(tag: string) => boolean>;
 }
 
 interface Options {
@@ -22,13 +26,13 @@ export function streamRevalidatedTags({ cache, config = {}, req }: Options) {
     keepaliveInterval = DEFAULT_KEEPALIVE_INTERVAL,
     filter = () => () => true,
   } = config;
-  const filterTag = filter(req);
   const id = crypto.randomUUID();
   let interval: ReturnType<typeof setInterval> | null = null;
   let timeout: ReturnType<typeof setTimeout> | null = null;
   let unsubscribe = () => {};
   const stream = new ReadableStream({
     async start(controller) {
+      const filterTag = await filter(req);
       let queue = new Set<string>();
       const textEncoder = new TextEncoder();
 
