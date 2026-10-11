@@ -15,6 +15,7 @@ import type { TRequest } from "@toapi/common";
 import type { Cache } from "./cache.js";
 import { generateOpenAPISchema } from "./openapi.js";
 import { streamRevalidatedTags } from "./revalidation-stream.js";
+import { encodeTags } from "./hash-tags.js";
 
 interface Options {
   /** the root path for all API routes */
@@ -145,6 +146,7 @@ export function createRequestHandler(
                   }
                 }
               }
+              await encodeTags(api.revalidationStreamConfig?.hashSecret, res);
               return res;
             } catch (error) {
               // catches errors while actually handling the request
@@ -180,6 +182,7 @@ export function createRequestHandler(
                   errorLog(error);
                 }
               }
+              await encodeTags(api.revalidationStreamConfig?.hashSecret, res);
               return res;
             } catch (error) {
               await errorLog(error);
@@ -219,6 +222,7 @@ export function createRequestHandler(
                   errorLog(error);
                 }
               }
+              await encodeTags(api.revalidationStreamConfig?.hashSecret, res);
               return res;
             } catch (error) {
               await errorLog(error);

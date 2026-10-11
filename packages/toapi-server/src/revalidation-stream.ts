@@ -4,6 +4,7 @@ import {
   type MaybePromise,
 } from "@toapi/common";
 import type { Cache } from "./cache.js";
+import { hashEncoder, textEncoder } from "./hash-tags.js";
 
 const DEFAULT_KEEPALIVE_INTERVAL = 10 * 1000;
 const DEFAULT_THROTTLE_TIMEOUT = 500;
@@ -12,6 +13,7 @@ export interface RevalidationStreamConfig {
   throttleTimeout?: number;
   keepaliveInterval?: number;
   filter?: (req: Request) => MaybePromise<(tag: string) => boolean>;
+  hashSecret?: string;
 }
 
 interface Options {
@@ -34,10 +36,12 @@ export function streamRevalidatedTags({ cache, config = {}, req }: Options) {
     async start(controller) {
       const filterTag = await filter(req);
       let queue = new Set<string>();
-      const textEncoder = new TextEncoder();
+      const encode = config.hashSecret
+        ? hashEncoder(config.hashSecret)
+        : textEncoder();
 
       // subscribe to tag invalidations
-      unsubscribe = cache.subscribe((tags, meta) => {
+      unsubscribe = cache.subscribe(async (tags, meta) => {
         // ignore our own invalidations
         if (
           meta &&
@@ -55,15 +59,11 @@ export function streamRevalidatedTags({ cache, config = {}, req }: Options) {
 
         // send tags to client
         if (queue.size > 0 && !timeout) {
-          controller.enqueue(
-            textEncoder.encode(`${Array.from(queue).join(" ")}\n`),
-          );
+          controller.enqueue(await encode(Array.from(queue)));
           queue = new Set();
 
-          timeout = setTimeout(() => {
-            controller.enqueue(
-              textEncoder.encode(`${Array.from(queue).join(" ")}\n`),
-            );
+          timeout = setTimeout(async () => {
+            controller.enqueue(await encode(Array.from(queue)));
             queue = new Set();
             timeout = null;
           }, throttleTimeout);
@@ -73,7 +73,7 @@ export function streamRevalidatedTags({ cache, config = {}, req }: Options) {
       // keepalive. The first one is sent right away so the response headers
       // are flushed immediately instead of only once the interval first
       // fires — consumers skip empty lines, so this is a no-op for them.
-      const keepalive = () => controller.enqueue(textEncoder.encode("\n"));
+      const keepalive = () => controller.enqueue(new Uint8Array([10]));
       keepalive();
       interval = setInterval(keepalive, keepaliveInterval);
     },
