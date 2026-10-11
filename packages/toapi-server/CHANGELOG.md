@@ -1,5 +1,16 @@
 # @toapi/server
 
+## 1.5.0
+
+### Minor Changes
+
+- 158f0fa: Async Revalidation Tag Filters
+- 3695e4c: Transparently hash tags before passing them to the client
+
+### Patch Changes
+
+- @toapi/common@1.5.0
+
 ## 1.4.0
 
 ### Minor Changes

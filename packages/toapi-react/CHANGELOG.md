@@ -1,5 +1,11 @@
 # @toapi/react
 
+## 1.5.0
+
+### Patch Changes
+
+- @toapi/common@1.5.0
+
 ## 1.4.0
 
 ### Minor Changes
