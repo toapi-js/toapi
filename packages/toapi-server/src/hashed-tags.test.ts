@@ -6,41 +6,62 @@ import { defineHandler } from "./define-handler.js";
 import { INVALIDATIONS_ROUTE, TAGS_HEADER, TResponse } from "@toapi/common";
 import { hashTag } from "./hash-tags.js";
 
-describe("Hashed Tags", () => {
-  test("hashes tags the same way for responses and invalidation stream", async () => {
-    const secret = "superSecretTestSecret";
-    const tags = ["foo", "bar"];
-    const te = new TextEncoder();
+describe("Hashed Tags", async () => {
+  const secret = "superSecretTestSecret";
+  const tags = ["foo", "bar"];
+  const te = new TextEncoder();
 
-    const expectedTags = await Promise.all(
-      tags.map((tag) => hashTag(te, secret, tag)),
-    );
+  const expectedTags = await Promise.all(
+    tags.map((tag) => hashTag(te, secret, tag)),
+  );
 
-    const cache = new PubSub();
+  const cache = new PubSub();
 
-    const get = vi.fn(async () => {
-      return TResponse.void({ cache: { tags } });
-    });
+  const respond = vi.fn(async () => {
+    return TResponse.void({ cache: { tags } });
+  });
 
-    const api = defineApi({
-      revalidationStream: {
-        hashSecret: secret,
+  const api = defineApi({
+    revalidationStream: {
+      hashSecret: secret,
+    },
+    cache,
+  }).route("/foo", {
+    GET: defineHandler(
+      {
+        authorize: () => true,
       },
-      cache,
-    }).route("/foo", {
-      GET: defineHandler(
-        {
-          authorize: () => true,
-        },
-        get,
-      ),
-    });
+      respond,
+    ),
+    POST: defineHandler(
+      {
+        authorize: () => true,
+      },
+      respond,
+    ),
+    DELETE: defineHandler(
+      {
+        authorize: () => true,
+      },
+      respond,
+    ),
+  });
 
-    const handler = createRequestHandler(api);
+  const handler = createRequestHandler(api);
 
-    const res = await handler(new Request("http://localhost/foo"));
-    expect(res.headers.get(TAGS_HEADER)).toBe(expectedTags.join(" "));
+  test.for([["GET"], ["POST"], ["DELETE"]])(
+    "hashes tags in %s response header",
+    async ([method]) => {
+      const res = await handler(
+        new Request("http://localhost/foo", {
+          method,
+        }),
+      );
+      expect(res.headers.get(TAGS_HEADER)).toBe(expectedTags.join(" "));
+    },
+  );
 
+  test("hashes tags in invalidation stream", async () => {
     const stream = await handler(
       new Request(`http://localhost${INVALIDATIONS_ROUTE}`),
     );
