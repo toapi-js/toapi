@@ -1,0 +1,20 @@
+[package]
+name = "toapi-client"
+description = "Typed Toapi client with a tag-based cache, live queries and the invalidation stream"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+toapi-core.workspace = true
+toapi-macros.workspace = true
+async-stream.workspace = true
+bytes.workspace = true
+futures.workspace = true
+percent-encoding.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_urlencoded.workspace = true
+tokio.workspace = true

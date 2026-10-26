@@ -1,0 +1,14 @@
+[package]
+name = "users-server"
+description = "Example Toapi server: the API is defined once, here"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+toapi-server.workspace = true
+axum.workspace = true
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true

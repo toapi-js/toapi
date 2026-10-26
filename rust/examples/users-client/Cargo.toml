@@ -1,0 +1,19 @@
+[package]
+name = "users-client"
+description = "Example Toapi client, generated from users-server/openapi.json"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+toapi-client.workspace = true
+
+[build-dependencies]
+toapi-codegen.workspace = true
+
+[dev-dependencies]
+users-server = { path = "../users-server" }
+axum.workspace = true
+futures.workspace = true
+reqwest.workspace = true
+tokio.workspace = true

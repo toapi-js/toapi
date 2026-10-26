@@ -31,6 +31,11 @@ Service worker runtime that caches Toapi responses and keeps them in sync with t
 ### [@farbenmeer/prisma-migrate-test](./packages/prisma-migrate-test)
 Run Prisma migrations against throwaway SQLite/PGlite databases in tests.
 
+## Rust
+
+### [rust/](./rust)
+Toapi for Rust: define the API on an axum server, generate OpenAPI from it, generate a typed client with `get!`/`post!` request macros, and keep caches fresh with tag-based invalidation over the same wire protocol.
+
 ## Examples
 
 ### [env-file](./examples/env-file)
