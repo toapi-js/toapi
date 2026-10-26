@@ -21,8 +21,7 @@ struct Entry {
     /// invalidated (and maybe replaced) doesn't touch the newer entry.
     id: u64,
     result: SharedResult,
-    /// Empty until the response arrived. Kept to remove the entry from the
-    /// tag index when it goes away.
+    /// Empty until the response arrived.
     tags: Vec<String>,
 }
 
@@ -31,9 +30,6 @@ struct Entry {
 #[derive(Default)]
 pub(crate) struct Cache {
     entries: HashMap<String, Entry>,
-    /// The URLs of the entries carrying each tag. Only holds URLs of current
-    /// entries: an entry is removed from it together with the entry.
-    tag_index: HashMap<String, HashSet<String>>,
     next_id: u64,
 }
 
@@ -48,7 +44,6 @@ impl Cache {
     }
 
     pub fn insert(&mut self, url: String, id: u64, result: SharedResult) {
-        self.remove_entry(&url);
         self.entries.insert(
             url,
             Entry {
@@ -61,23 +56,15 @@ impl Cache {
 
     /// Records the tags of a response, if its entry is still current.
     pub fn set_tags(&mut self, url: &str, id: u64, tags: Vec<String>) {
-        let Some(entry) = self.entries.get_mut(url).filter(|e| e.id == id) else {
-            return;
-        };
-        let old_tags = std::mem::replace(&mut entry.tags, tags.clone());
-        unindex(&mut self.tag_index, url, &old_tags);
-        for tag in tags {
-            self.tag_index
-                .entry(tag)
-                .or_default()
-                .insert(url.to_string());
+        if let Some(entry) = self.entries.get_mut(url).filter(|e| e.id == id) {
+            entry.tags = tags;
         }
     }
 
     /// Removes an entry if it is still the one with `id`.
     pub fn remove(&mut self, url: &str, id: u64) -> bool {
         if self.entries.get(url).is_some_and(|e| e.id == id) {
-            self.remove_entry(url);
+            self.entries.remove(url);
             true
         } else {
             false
@@ -86,40 +73,22 @@ impl Cache {
 
     /// Removes every entry carrying one of `tags` and returns their URLs.
     pub fn invalidate_tags(&mut self, tags: &[String]) -> HashSet<String> {
-        let urls: HashSet<String> = tags
+        let tags: HashSet<&str> = tags.iter().map(String::as_str).collect();
+        let urls: HashSet<String> = self
+            .entries
             .iter()
-            .filter_map(|tag| self.tag_index.get(tag))
-            .flatten()
-            .cloned()
+            .filter(|(_, entry)| entry.tags.iter().any(|tag| tags.contains(tag.as_str())))
+            .map(|(url, _)| url.clone())
             .collect();
         for url in &urls {
-            self.remove_entry(url);
+            self.entries.remove(url);
         }
         urls
     }
 
     /// Removes every entry and returns their URLs.
     pub fn invalidate_all(&mut self) -> HashSet<String> {
-        self.tag_index.clear();
         self.entries.drain().map(|(url, _)| url).collect()
-    }
-
-    fn remove_entry(&mut self, url: &str) {
-        if let Some(entry) = self.entries.remove(url) {
-            unindex(&mut self.tag_index, url, &entry.tags);
-        }
-    }
-}
-
-/// Removes `url` from the index entries of `tags`, dropping emptied ones.
-fn unindex(tag_index: &mut HashMap<String, HashSet<String>>, url: &str, tags: &[String]) {
-    for tag in tags {
-        if let Some(urls) = tag_index.get_mut(tag) {
-            urls.remove(url);
-            if urls.is_empty() {
-                tag_index.remove(tag);
-            }
-        }
     }
 }
 
@@ -152,29 +121,6 @@ mod tests {
         assert_eq!(urls, HashSet::from(["/users".to_string()]));
         assert!(cache.get("/users").is_none());
         assert!(cache.get("/users/1").is_some());
-    }
-
-    #[test]
-    fn index_only_holds_current_entries() {
-        let mut cache = Cache::default();
-        let (a, b) = (cache.next_id(), cache.next_id());
-        cache.insert("/users".into(), a, ready("[]"));
-        cache.insert("/users/1".into(), b, ready("{}"));
-        cache.set_tags("/users", a, tags(&["users"]));
-        cache.set_tags("/users/1", b, tags(&["users", "user:1"]));
-        assert_eq!(cache.tag_index["users"].len(), 2);
-
-        // invalidating one tag removes the entry from its other tags too
-        cache.invalidate_tags(&tags(&["user:1"]));
-        assert_eq!(
-            cache.tag_index["users"],
-            HashSet::from(["/users".to_string()])
-        );
-        assert!(!cache.tag_index.contains_key("user:1"));
-
-        // expiring (removing) the last entry empties the index
-        assert!(cache.remove("/users", a));
-        assert!(cache.tag_index.is_empty());
     }
 
     #[test]
