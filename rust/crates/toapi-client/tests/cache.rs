@@ -41,6 +41,21 @@ impl Request for GetCounter {
     }
 }
 
+/// `GET /counter` again, with a plain response type that doesn't touch
+/// `PARSED`, for tests running in parallel to the one reading it.
+struct GetCount;
+
+impl Request for GetCount {
+    type Kind = Query;
+    type Response = usize;
+    const METHOD: toapi_client::Method = toapi_client::Method::GET;
+    const TEMPLATE: &'static str = "/counter";
+
+    fn path(&self) -> String {
+        "/counter".into()
+    }
+}
+
 /// `GET /failing`: fails on the first call, succeeds afterwards.
 struct GetFailing;
 
@@ -152,4 +167,31 @@ async fn drops_failed_requests_shortly_after() {
 
     tokio::time::sleep(Duration::from_millis(200)).await;
     assert_eq!(*client.call(GetFailing).await.unwrap(), 1);
+}
+
+#[tokio::test]
+async fn watch_subscriptions_refetch_without_being_polled() {
+    let (base_url, hits) = start_server().await;
+    let client = client(&base_url);
+
+    // subscribed as soon as `watch()` is called, before the first poll
+    let mut watch = Box::pin(client.call(GetCount).watch());
+    assert_eq!(*client.call(GetCount).await.unwrap(), 1);
+
+    // nobody polls the stream, yet the invalidation completes and its
+    // callback refetched the URL
+    tokio::time::timeout(Duration::from_secs(5), client.invalidate(["counter"]))
+        .await
+        .expect("invalidation waited for the stream to be polled");
+    assert_eq!(hits.load(Ordering::SeqCst), 2);
+
+    // the stream starts with the current value, then the pushed refetch
+    assert_eq!(*watch.next().await.unwrap().unwrap(), 2);
+    client.invalidate(["counter"]).await;
+    assert_eq!(*watch.next().await.unwrap().unwrap(), 3);
+
+    // a dropped stream unsubscribes: invalidations no longer refetch
+    drop(watch);
+    client.invalidate(["counter"]).await;
+    assert_eq!(hits.load(Ordering::SeqCst), 3);
 }

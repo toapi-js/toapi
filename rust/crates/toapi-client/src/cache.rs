@@ -6,7 +6,7 @@ use std::{
 
 use futures::future::{BoxFuture, Shared};
 
-use crate::{Error, client::Inner};
+use crate::Error;
 
 /// A parsed response. Stored type-erased because one cache holds the
 /// responses of every route; readers downcast it to the route's response type.
@@ -15,9 +15,6 @@ pub(crate) type Value = Arc<dyn Any + Send + Sync>;
 /// The result of a request, shared by everyone asking for the same URL while
 /// the entry lives. It resolves once, so the response is parsed only once.
 pub(crate) type SharedResult = Shared<BoxFuture<'static, Result<Value, Error>>>;
-
-/// Starts a new request for a URL, with the URL's response type baked in.
-pub(crate) type Reload = Arc<dyn Fn(&Arc<Inner>, &str) -> SharedResult + Send + Sync>;
 
 struct Entry {
     /// Identifies this entry, so a request that finishes after its entry was
@@ -28,18 +25,11 @@ struct Entry {
     tags: Vec<String>,
 }
 
-struct Watcher {
-    count: usize,
-    reload: Reload,
-}
-
 /// Requests by URL, stored as soon as they are made (like the TypeScript
 /// client), so concurrent requests for the same URL share one request.
 #[derive(Default)]
 pub(crate) struct Cache {
     entries: HashMap<String, Entry>,
-    /// Active watch streams per URL.
-    watchers: HashMap<String, Watcher>,
     next_id: u64,
 }
 
@@ -96,37 +86,9 @@ impl Cache {
         urls
     }
 
-    /// Removes every entry and returns the URLs of the entries and watchers.
+    /// Removes every entry and returns their URLs.
     pub fn invalidate_all(&mut self) -> HashSet<String> {
-        let mut urls: HashSet<String> = self.entries.drain().map(|(url, _)| url).collect();
-        urls.extend(self.watchers.keys().cloned());
-        urls
-    }
-
-    /// The reload functions of the watched URLs among `urls`.
-    pub fn watched(&self, urls: &HashSet<String>) -> Vec<(String, Reload)> {
-        urls.iter()
-            .filter_map(|url| {
-                let watcher = self.watchers.get(url)?;
-                Some((url.clone(), watcher.reload.clone()))
-            })
-            .collect()
-    }
-
-    pub fn watch(&mut self, url: &str, reload: Reload) {
-        self.watchers
-            .entry(url.to_string())
-            .or_insert(Watcher { count: 0, reload })
-            .count += 1;
-    }
-
-    pub fn unwatch(&mut self, url: &str) {
-        if let Some(watcher) = self.watchers.get_mut(url) {
-            watcher.count -= 1;
-            if watcher.count == 0 {
-                self.watchers.remove(url);
-            }
-        }
+        self.entries.drain().map(|(url, _)| url).collect()
     }
 }
 

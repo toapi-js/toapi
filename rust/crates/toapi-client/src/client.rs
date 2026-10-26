@@ -11,11 +11,12 @@ use futures::{FutureExt, Stream, future::join_all};
 use reqwest::header::CONTENT_TYPE;
 use serde::de::DeserializeOwned;
 use toapi_core::{EXPIRES_AT_HEADER, INVALIDATIONS_ROUTE, TAGS_HEADER};
-use tokio::sync::broadcast;
+use tokio::sync::watch;
 
 use crate::{
     Error,
-    cache::{Cache, Reload, SharedResult, Value},
+    cache::{Cache, SharedResult, Value},
+    pub_sub::{Callback, PubSub},
     request::{Kind, Mutation, Query, Request},
     stream::spawn_listener,
 };
@@ -40,8 +41,9 @@ pub(crate) struct Inner {
     http: reqwest::Client,
     base_url: String,
     cache: Mutex<Cache>,
-    /// The URLs of invalidated entries, for the watch streams to refetch.
-    events: broadcast::Sender<Arc<HashSet<String>>>,
+    /// Subscriptions to the URLs of invalidated entries, held by the watch
+    /// streams.
+    pub_sub: Mutex<PubSub>,
     listener: Mutex<Option<tokio::task::AbortHandle>>,
 }
 
@@ -56,6 +58,10 @@ impl Drop for Inner {
 impl Inner {
     fn cache(&self) -> MutexGuard<'_, Cache> {
         self.cache.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    fn pub_sub(&self) -> MutexGuard<'_, PubSub> {
+        self.pub_sub.lock().unwrap_or_else(|e| e.into_inner())
     }
 
     /// The request for `url`: the cached one, or a new one that is cached
@@ -108,7 +114,7 @@ impl Inner {
                         tokio::time::sleep(delay).await;
                         let Some(inner) = inner.upgrade() else { return };
                         if inner.cache().remove(&url, id) {
-                            inner.revalidate(HashSet::from([url])).await;
+                            inner.publish(HashSet::from([url])).await;
                         }
                     });
                 }
@@ -134,39 +140,39 @@ impl Inner {
         })
     }
 
-    /// Drops the entries carrying any of `tags` and revalidates them.
+    /// Drops the entries carrying any of `tags` and resolves once the
+    /// subscribers refetched them.
     pub(crate) async fn invalidate_tags(self: &Arc<Self>, tags: &[String]) {
         if tags.is_empty() {
             return;
         }
         let urls = self.cache().invalidate_tags(tags);
-        self.revalidate(urls).await;
+        self.publish(urls).await;
     }
 
     /// Drops the whole cache, e.g. after the invalidation stream reconnected
     /// and may have missed invalidations.
     pub(crate) async fn invalidate_all(self: &Arc<Self>) {
         let urls = self.cache().invalidate_all();
-        self.revalidate(urls).await;
+        self.publish(urls).await;
     }
 
-    /// Tells the watch streams that `urls` were dropped from the cache, and
-    /// resolves once the watched ones were refetched.
-    ///
-    /// The refetches start before the message goes out, so the watch streams
-    /// pick up these requests from the cache instead of starting their own.
-    async fn revalidate(self: &Arc<Self>, urls: HashSet<String>) {
+    /// Calls every subscription with the URLs of dropped cache entries and
+    /// resolves once all of them are done, like the TypeScript client's
+    /// `PubSub.publish`. Watch streams refetch in their callbacks, so this
+    /// resolves once the watched URLs among `urls` were refetched.
+    async fn publish(self: &Arc<Self>, urls: HashSet<String>) {
         if urls.is_empty() {
             return;
         }
-        let watched = self.cache().watched(&urls);
-        let refetches: Vec<SharedResult> = watched
-            .iter()
-            .map(|(url, reload)| reload(self, url))
-            .collect();
-        let _ = self.events.send(Arc::new(urls));
-        // errors surface in the watch streams
-        join_all(refetches).await;
+        let urls = Arc::new(urls);
+        let callbacks = self.pub_sub().callbacks();
+        join_all(
+            callbacks
+                .iter()
+                .map(|callback| callback(self.clone(), urls.clone())),
+        )
+        .await;
     }
 }
 
@@ -263,7 +269,7 @@ impl ClientBuilder {
             http: http.clone(),
             base_url: base_url.clone(),
             cache: Mutex::default(),
-            events: broadcast::channel(256).0,
+            pub_sub: Mutex::default(),
             listener: Mutex::default(),
         });
         if self.invalidation_stream {
@@ -375,7 +381,31 @@ where
     /// the query.
     pub fn watch(self) -> impl Stream<Item = Result<Arc<R::Response>, Error>> + Send + 'static {
         let QueryCall { inner, url, .. } = self;
+
+        // subscribe right away, like the TypeScript client: the callback
+        // refetches the URL when it is invalidated and hands the result to
+        // the stream. The channel keeps only the latest result, so a stream
+        // nobody polls doesn't pile up responses or hold up invalidations.
+        let (sender, mut receiver) = watch::channel(None);
+        let subscription = url.as_ref().ok().map(|url| {
+            let sender = Arc::new(sender);
+            let url = url.clone();
+            let callback: Callback = Arc::new(move |inner, urls| {
+                let sender = sender.clone();
+                let url = url.clone();
+                async move {
+                    if urls.contains(&url) {
+                        let result = inner.query::<R::Response>(&url).await;
+                        sender.send_replace(Some(result));
+                    }
+                }
+                .boxed()
+            });
+            Subscription::new(inner.clone(), callback)
+        });
+
         async_stream::stream! {
+            let _subscription = subscription;
             let url = match url {
                 Ok(url) => url,
                 Err(e) => {
@@ -383,17 +413,11 @@ where
                     return;
                 }
             };
-            let reload: Reload = Arc::new(|inner, url| inner.request::<R::Response>(url));
-            let _watch = WatchGuard::new(inner.clone(), url.clone(), reload);
-            let mut events = inner.events.subscribe();
-            loop {
-                yield inner.query::<R::Response>(&url).await;
-                loop {
-                    match events.recv().await {
-                        Ok(urls) if !urls.contains(&url) => continue,
-                        Ok(_) | Err(broadcast::error::RecvError::Lagged(_)) => break,
-                        Err(broadcast::error::RecvError::Closed) => return,
-                    }
+            yield inner.query::<R::Response>(&url).await;
+            while receiver.changed().await.is_ok() {
+                let latest = receiver.borrow_and_update().clone();
+                if let Some(result) = latest {
+                    yield result;
                 }
             }
         }
@@ -415,21 +439,22 @@ where
     }
 }
 
-struct WatchGuard {
+/// Unsubscribes its callback when dropped, i.e. when the watch stream is.
+struct Subscription {
     inner: Arc<Inner>,
-    url: String,
+    id: u64,
 }
 
-impl WatchGuard {
-    fn new(inner: Arc<Inner>, url: String, reload: Reload) -> Self {
-        inner.cache().watch(&url, reload);
-        WatchGuard { inner, url }
+impl Subscription {
+    fn new(inner: Arc<Inner>, callback: Callback) -> Self {
+        let id = inner.pub_sub().subscribe(callback);
+        Subscription { inner, id }
     }
 }
 
-impl Drop for WatchGuard {
+impl Drop for Subscription {
     fn drop(&mut self) {
-        self.inner.cache().unwatch(&self.url);
+        self.inner.pub_sub().unsubscribe(self.id);
     }
 }
 

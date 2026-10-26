@@ -31,11 +31,15 @@
 //! - A mutation invalidates its tags locally once it returns; mutations by
 //!   other clients arrive over the invalidation stream. Either way, the
 //!   entries carrying those tags are deleted and their URLs are published to
-//!   the [`QueryCall::watch`] streams, which refetch them.
+//!   the subscriptions. Each [`QueryCall::watch`] stream subscribes a
+//!   callback that refetches its URL and pushes the result to the stream;
+//!   publishing awaits all callbacks, so a mutation resolves once the
+//!   watched queries it invalidated were refetched.
 
 mod cache;
 mod client;
 mod error;
+mod pub_sub;
 mod request;
 mod stream;
 
