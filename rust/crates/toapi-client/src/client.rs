@@ -4,34 +4,44 @@ use std::{
     marker::PhantomData,
     pin::Pin,
     sync::{Arc, Mutex, MutexGuard},
-    time::{Duration, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use bytes::Bytes;
-use futures::{Stream, future::join_all};
+use futures::{FutureExt, Stream, future::join_all};
 use reqwest::header::CONTENT_TYPE;
+use serde::de::DeserializeOwned;
 use toapi_core::{EXPIRES_AT_HEADER, INVALIDATIONS_ROUTE, TAGS_HEADER};
 use tokio::sync::broadcast;
 
 use crate::{
     Error,
-    cache::Cache,
+    cache::{Cache, Reload, SharedResult, Value},
     request::{Kind, Mutation, Query, Request},
     stream::spawn_listener,
 };
 
-/// Sent to watch streams after their entries were invalidated and refetched.
-#[derive(Clone)]
-pub(crate) enum CacheEvent {
-    Invalidated(Arc<HashSet<String>>),
-    All,
+/// How long a failed request stays cached, so a burst of identical requests
+/// doesn't hammer a failing server (like the TypeScript client's `minTTL`).
+const ERROR_TTL: Duration = Duration::from_millis(100);
+/// Expired responses are dropped up to this much later, so entries that
+/// expire together don't all refetch at the same moment.
+const MAX_OVERDUE: Duration = Duration::from_millis(1000);
+
+/// A response type the cache can hold.
+pub(crate) trait Cacheable: DeserializeOwned + Send + Sync + 'static {}
+impl<T: DeserializeOwned + Send + Sync + 'static> Cacheable for T {}
+
+struct Meta {
+    tags: Vec<String>,
+    expires_at: Option<SystemTime>,
 }
 
 pub(crate) struct Inner {
     http: reqwest::Client,
     base_url: String,
     cache: Mutex<Cache>,
-    events: broadcast::Sender<CacheEvent>,
+    /// The URLs of invalidated entries, for the watch streams to refetch.
+    events: broadcast::Sender<Arc<HashSet<String>>>,
     listener: Mutex<Option<tokio::task::AbortHandle>>,
 }
 
@@ -48,66 +58,141 @@ impl Inner {
         self.cache.lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    /// Serves a GET from the cache, or fetches and caches it.
-    async fn fetch(&self, url: &str) -> Result<Bytes, Error> {
-        let generation = {
-            let cache = self.cache();
-            if let Some(body) = cache.get(url) {
-                return Ok(body);
-            }
-            cache.generation()
-        };
-        let res = check_status(self.http.get(url).send().await?).await?;
-        let tags = header_tags(&res);
-        let expires_at = res
-            .headers()
-            .get(EXPIRES_AT_HEADER)
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.parse::<u64>().ok())
-            .map(|ms| UNIX_EPOCH + Duration::from_millis(ms));
-        let body = res.bytes().await?;
-        self.cache()
-            .insert(generation, url.to_string(), body.clone(), tags, expires_at);
-        Ok(body)
+    /// The request for `url`: the cached one, or a new one that is cached
+    /// right away, so concurrent callers share it.
+    pub(crate) fn request<T: Cacheable>(self: &Arc<Self>, url: &str) -> SharedResult {
+        let mut cache = self.cache();
+        if let Some(result) = cache.get(url) {
+            return result;
+        }
+        let id = cache.next_id();
+        let result = self.spawn_request::<T>(url.to_string(), id);
+        cache.insert(url.to_string(), id, result.clone());
+        result
     }
 
-    /// Drops the entries carrying any of `tags`, refetches the watched ones
-    /// and then notifies their watch streams.
-    pub(crate) async fn invalidate_tags(&self, tags: &[String]) {
+    /// Runs the request in its own task, so it completes (and lands in the
+    /// cache) even when every caller stops waiting for it.
+    fn spawn_request<T: Cacheable>(self: &Arc<Self>, url: String, id: u64) -> SharedResult {
+        let http = self.http.clone();
+        let inner = Arc::downgrade(self);
+        let task = tokio::spawn(async move {
+            let loaded = load::<T>(&http, &url).await;
+            if let Some(inner) = inner.upgrade() {
+                inner.settle(&url, id, &loaded);
+            }
+            loaded.map(|(value, _)| value)
+        });
+        async move {
+            task.await
+                .unwrap_or_else(|e| Err(Error::Internal(format!("request task failed: {e}"))))
+        }
+        .boxed()
+        .shared()
+    }
+
+    /// Records the tags of a finished request, schedules its expiry, or drops
+    /// it shortly after a failure.
+    fn settle(self: &Arc<Self>, url: &str, id: u64, loaded: &Result<(Value, Meta), Error>) {
+        let inner = Arc::downgrade(self);
+        let url = url.to_string();
+        match loaded {
+            Ok((_, meta)) => {
+                self.cache().set_tags(&url, id, meta.tags.clone());
+                if let Some(expires_at) = meta.expires_at {
+                    let delay = expires_at
+                        .duration_since(SystemTime::now())
+                        .unwrap_or_default()
+                        + jitter();
+                    tokio::spawn(async move {
+                        tokio::time::sleep(delay).await;
+                        let Some(inner) = inner.upgrade() else { return };
+                        if inner.cache().remove(&url, id) {
+                            inner.revalidate(HashSet::from([url])).await;
+                        }
+                    });
+                }
+            }
+            Err(_) => {
+                tokio::spawn(async move {
+                    tokio::time::sleep(ERROR_TTL).await;
+                    if let Some(inner) = inner.upgrade() {
+                        inner.cache().remove(&url, id);
+                    }
+                });
+            }
+        }
+    }
+
+    /// The response for `url`, parsed once and cloned out of the cache.
+    async fn query<T: Cacheable + Clone>(self: &Arc<Self>, url: &str) -> Result<T, Error> {
+        let value = self.request::<T>(url).await?;
+        value.downcast_ref::<T>().cloned().ok_or_else(|| {
+            Error::Internal(format!(
+                "the cache entry for {url} holds a different response type"
+            ))
+        })
+    }
+
+    /// Drops the entries carrying any of `tags` and revalidates them.
+    pub(crate) async fn invalidate_tags(self: &Arc<Self>, tags: &[String]) {
         if tags.is_empty() {
             return;
         }
-        let (urls, watched) = {
-            let mut cache = self.cache();
-            let urls = cache.invalidate_tags(tags);
-            let watched: Vec<String> = urls
-                .iter()
-                .filter(|url| cache.is_watched(url))
-                .cloned()
-                .collect();
-            (urls, watched)
-        };
-        if urls.is_empty() {
-            return;
-        }
-        // errors surface in the watch streams, which fetch again on a miss
-        join_all(watched.iter().map(|url| self.fetch(url))).await;
-        let _ = self.events.send(CacheEvent::Invalidated(Arc::new(
-            urls.into_iter().collect(),
-        )));
+        let urls = self.cache().invalidate_tags(tags);
+        self.revalidate(urls).await;
     }
 
     /// Drops the whole cache, e.g. after the invalidation stream reconnected
     /// and may have missed invalidations.
-    pub(crate) async fn invalidate_all(&self) {
-        let watched = {
-            let mut cache = self.cache();
-            cache.invalidate_all();
-            cache.watched()
-        };
-        join_all(watched.iter().map(|url| self.fetch(url))).await;
-        let _ = self.events.send(CacheEvent::All);
+    pub(crate) async fn invalidate_all(self: &Arc<Self>) {
+        let urls = self.cache().invalidate_all();
+        self.revalidate(urls).await;
     }
+
+    /// Tells the watch streams that `urls` were dropped from the cache, and
+    /// resolves once the watched ones were refetched.
+    ///
+    /// The refetches start before the message goes out, so the watch streams
+    /// pick up these requests from the cache instead of starting their own.
+    async fn revalidate(self: &Arc<Self>, urls: HashSet<String>) {
+        if urls.is_empty() {
+            return;
+        }
+        let watched = self.cache().watched(&urls);
+        let refetches: Vec<SharedResult> = watched
+            .iter()
+            .map(|(url, reload)| reload(self, url))
+            .collect();
+        let _ = self.events.send(Arc::new(urls));
+        // errors surface in the watch streams
+        join_all(refetches).await;
+    }
+}
+
+async fn load<T: Cacheable>(http: &reqwest::Client, url: &str) -> Result<(Value, Meta), Error> {
+    let res = check_status(http.get(url).send().await?).await?;
+    let meta = Meta {
+        tags: header_tags(&res),
+        expires_at: res
+            .headers()
+            .get(EXPIRES_AT_HEADER)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.parse::<u64>().ok())
+            .map(|ms| UNIX_EPOCH + Duration::from_millis(ms)),
+    };
+    let body = res.bytes().await?;
+    let value: T = decode(&body)?;
+    Ok((Arc::new(value), meta))
+}
+
+/// A pseudo-random delay up to [`MAX_OVERDUE`].
+fn jitter() -> Duration {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .subsec_nanos();
+    MAX_OVERDUE.mul_f64(f64::from(nanos % 1000) / 1000.0)
 }
 
 async fn check_status(res: reqwest::Response) -> Result<reqwest::Response, Error> {
@@ -135,7 +220,7 @@ fn decode<T: serde::de::DeserializeOwned>(body: &[u8]) -> Result<T, Error> {
     } else {
         body
     };
-    serde_json::from_slice(body).map_err(Error::Decode)
+    serde_json::from_slice(body).map_err(|e| Error::Decode(Arc::new(e)))
 }
 
 /// Configures a [`Client`].
@@ -280,7 +365,7 @@ pub struct QueryCall<R> {
 impl<R> QueryCall<R>
 where
     R: Request<Kind = Query>,
-    R::Response: Send + 'static,
+    R::Response: Clone + Send + Sync + 'static,
 {
     /// A stream that yields the response now and again every time it is
     /// invalidated, by a mutation of this client or through the
@@ -295,13 +380,14 @@ where
                     return;
                 }
             };
-            let _watch = WatchGuard::new(inner.clone(), url.clone());
+            let reload: Reload = Arc::new(|inner, url| inner.request::<R::Response>(url));
+            let _watch = WatchGuard::new(inner.clone(), url.clone(), reload);
             let mut events = inner.events.subscribe();
             loop {
-                yield inner.fetch(&url).await.and_then(|body| decode(&body));
+                yield inner.query::<R::Response>(&url).await;
                 loop {
                     match events.recv().await {
-                        Ok(CacheEvent::Invalidated(urls)) if !urls.contains(&url) => continue,
+                        Ok(urls) if !urls.contains(&url) => continue,
                         Ok(_) | Err(broadcast::error::RecvError::Lagged(_)) => break,
                         Err(broadcast::error::RecvError::Closed) => return,
                     }
@@ -314,16 +400,13 @@ where
 impl<R> IntoFuture for QueryCall<R>
 where
     R: Request<Kind = Query>,
-    R::Response: Send + 'static,
+    R::Response: Clone + Send + Sync + 'static,
 {
     type Output = Result<R::Response, Error>;
     type IntoFuture = BoxFuture<Self::Output>;
 
     fn into_future(self) -> Self::IntoFuture {
-        Box::pin(async move {
-            let body = self.inner.fetch(&self.url?).await?;
-            decode(&body)
-        })
+        Box::pin(async move { self.inner.query::<R::Response>(&self.url?).await })
     }
 }
 
@@ -333,8 +416,8 @@ struct WatchGuard {
 }
 
 impl WatchGuard {
-    fn new(inner: Arc<Inner>, url: String) -> Self {
-        inner.cache().watch(&url);
+    fn new(inner: Arc<Inner>, url: String, reload: Reload) -> Self {
+        inner.cache().watch(&url, reload);
         WatchGuard { inner, url }
     }
 }

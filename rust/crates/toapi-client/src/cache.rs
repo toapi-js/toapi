@@ -1,69 +1,90 @@
 use std::{
+    any::Any,
     collections::{HashMap, HashSet},
-    time::SystemTime,
+    sync::Arc,
 };
 
-use bytes::Bytes;
+use futures::future::{BoxFuture, Shared};
+
+use crate::{Error, client::Inner};
+
+/// A parsed response. Stored type-erased because one cache holds the
+/// responses of every route; readers downcast it to the route's response type.
+pub(crate) type Value = Arc<dyn Any + Send + Sync>;
+
+/// The result of a request, shared by everyone asking for the same URL while
+/// the entry lives. It resolves once, so the response is parsed only once.
+pub(crate) type SharedResult = Shared<BoxFuture<'static, Result<Value, Error>>>;
+
+/// Starts a new request for a URL, with the URL's response type baked in.
+pub(crate) type Reload = Arc<dyn Fn(&Arc<Inner>, &str) -> SharedResult + Send + Sync>;
 
 struct Entry {
-    body: Bytes,
+    /// Identifies this entry, so a request that finishes after its entry was
+    /// invalidated (and maybe replaced) doesn't touch the newer entry.
+    id: u64,
+    result: SharedResult,
+    /// Empty until the response arrived.
     tags: Vec<String>,
-    expires_at: Option<SystemTime>,
 }
 
-/// Query responses by URL, with the tags they were sent with.
+struct Watcher {
+    count: usize,
+    reload: Reload,
+}
+
+/// Requests by URL, stored as soon as they are made (like the TypeScript
+/// client), so concurrent requests for the same URL share one request.
 #[derive(Default)]
 pub(crate) struct Cache {
     entries: HashMap<String, Entry>,
-    /// Number of active watch streams per URL.
-    watchers: HashMap<String, usize>,
-    /// Incremented on every invalidation. A response whose request started
-    /// before an invalidation may already be stale, so it isn't cached.
-    generation: u64,
+    /// Active watch streams per URL.
+    watchers: HashMap<String, Watcher>,
+    next_id: u64,
 }
 
 impl Cache {
-    pub fn get(&self, url: &str) -> Option<Bytes> {
-        let entry = self.entries.get(url)?;
-        let fresh = entry
-            .expires_at
-            .is_none_or(|expires_at| expires_at > SystemTime::now());
-        fresh.then(|| entry.body.clone())
+    pub fn get(&self, url: &str) -> Option<SharedResult> {
+        self.entries.get(url).map(|entry| entry.result.clone())
     }
 
-    pub fn generation(&self) -> u64 {
-        self.generation
+    pub fn next_id(&mut self) -> u64 {
+        self.next_id += 1;
+        self.next_id
     }
 
-    /// Caches a response unless an invalidation happened since `generation`.
-    /// Responses without tags and without an expiry are never invalidated, so
-    /// they aren't cached either.
-    pub fn insert(
-        &mut self,
-        generation: u64,
-        url: String,
-        body: Bytes,
-        tags: Vec<String>,
-        expires_at: Option<SystemTime>,
-    ) {
-        if generation != self.generation || (tags.is_empty() && expires_at.is_none()) {
-            return;
-        }
+    pub fn insert(&mut self, url: String, id: u64, result: SharedResult) {
         self.entries.insert(
             url,
             Entry {
-                body,
-                tags,
-                expires_at,
+                id,
+                result,
+                tags: Vec::new(),
             },
         );
     }
 
-    /// Drops every entry carrying one of `tags` and returns their URLs.
-    pub fn invalidate_tags(&mut self, tags: &[String]) -> Vec<String> {
-        self.generation += 1;
+    /// Records the tags of a response, if its entry is still current.
+    pub fn set_tags(&mut self, url: &str, id: u64, tags: Vec<String>) {
+        if let Some(entry) = self.entries.get_mut(url).filter(|e| e.id == id) {
+            entry.tags = tags;
+        }
+    }
+
+    /// Removes an entry if it is still the one with `id`.
+    pub fn remove(&mut self, url: &str, id: u64) -> bool {
+        if self.entries.get(url).is_some_and(|e| e.id == id) {
+            self.entries.remove(url);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Removes every entry carrying one of `tags` and returns their URLs.
+    pub fn invalidate_tags(&mut self, tags: &[String]) -> HashSet<String> {
         let tags: HashSet<&str> = tags.iter().map(String::as_str).collect();
-        let urls: Vec<String> = self
+        let urls: HashSet<String> = self
             .entries
             .iter()
             .filter(|(_, entry)| entry.tags.iter().any(|tag| tags.contains(tag.as_str())))
@@ -75,27 +96,34 @@ impl Cache {
         urls
     }
 
-    pub fn invalidate_all(&mut self) {
-        self.generation += 1;
-        self.entries.clear();
+    /// Removes every entry and returns the URLs of the entries and watchers.
+    pub fn invalidate_all(&mut self) -> HashSet<String> {
+        let mut urls: HashSet<String> = self.entries.drain().map(|(url, _)| url).collect();
+        urls.extend(self.watchers.keys().cloned());
+        urls
     }
 
-    pub fn is_watched(&self, url: &str) -> bool {
-        self.watchers.contains_key(url)
+    /// The reload functions of the watched URLs among `urls`.
+    pub fn watched(&self, urls: &HashSet<String>) -> Vec<(String, Reload)> {
+        urls.iter()
+            .filter_map(|url| {
+                let watcher = self.watchers.get(url)?;
+                Some((url.clone(), watcher.reload.clone()))
+            })
+            .collect()
     }
 
-    pub fn watched(&self) -> Vec<String> {
-        self.watchers.keys().cloned().collect()
-    }
-
-    pub fn watch(&mut self, url: &str) {
-        *self.watchers.entry(url.to_string()).or_default() += 1;
+    pub fn watch(&mut self, url: &str, reload: Reload) {
+        self.watchers
+            .entry(url.to_string())
+            .or_insert(Watcher { count: 0, reload })
+            .count += 1;
     }
 
     pub fn unwatch(&mut self, url: &str) {
-        if let Some(count) = self.watchers.get_mut(url) {
-            *count -= 1;
-            if *count == 0 {
+        if let Some(watcher) = self.watchers.get_mut(url) {
+            watcher.count -= 1;
+            if watcher.count == 0 {
                 self.watchers.remove(url);
             }
         }
@@ -104,7 +132,15 @@ impl Cache {
 
 #[cfg(test)]
 mod tests {
+    use futures::FutureExt;
+
     use super::*;
+
+    fn ready(value: &'static str) -> SharedResult {
+        futures::future::ready(Ok(Arc::new(value) as Value))
+            .boxed()
+            .shared()
+    }
 
     fn tags(tags: &[&str]) -> Vec<String> {
         tags.iter().map(|t| t.to_string()).collect()
@@ -113,48 +149,31 @@ mod tests {
     #[test]
     fn invalidates_by_tag() {
         let mut cache = Cache::default();
-        cache.insert(
-            0,
-            "/users".into(),
-            Bytes::from("[]"),
-            tags(&["users"]),
-            None,
-        );
-        cache.insert(
-            0,
-            "/users/1".into(),
-            Bytes::from("{}"),
-            tags(&["user:1"]),
-            None,
-        );
+        let (a, b) = (cache.next_id(), cache.next_id());
+        cache.insert("/users".into(), a, ready("[]"));
+        cache.insert("/users/1".into(), b, ready("{}"));
+        cache.set_tags("/users", a, tags(&["users"]));
+        cache.set_tags("/users/1", b, tags(&["user:1"]));
 
-        assert_eq!(
-            cache.invalidate_tags(&tags(&["users"])),
-            vec!["/users".to_string()]
-        );
+        let urls = cache.invalidate_tags(&tags(&["users"]));
+        assert_eq!(urls, HashSet::from(["/users".to_string()]));
         assert!(cache.get("/users").is_none());
         assert!(cache.get("/users/1").is_some());
     }
 
     #[test]
-    fn skips_responses_older_than_an_invalidation() {
+    fn late_responses_leave_newer_entries_alone() {
         let mut cache = Cache::default();
-        let generation = cache.generation();
-        cache.invalidate_tags(&tags(&["users"]));
-        cache.insert(
-            generation,
-            "/users".into(),
-            Bytes::from("[]"),
-            tags(&["users"]),
-            None,
-        );
-        assert!(cache.get("/users").is_none());
-    }
+        let old = cache.next_id();
+        cache.insert("/users".into(), old, ready("old"));
+        cache.invalidate_all();
+        let new = cache.next_id();
+        cache.insert("/users".into(), new, ready("new"));
 
-    #[test]
-    fn skips_untagged_responses() {
-        let mut cache = Cache::default();
-        cache.insert(0, "/health".into(), Bytes::from("ok"), vec![], None);
-        assert!(cache.get("/health").is_none());
+        // the old request finishes after the invalidation
+        cache.set_tags("/users", old, tags(&["users"]));
+        assert!(!cache.remove("/users", old));
+        assert!(cache.invalidate_tags(&tags(&["users"])).is_empty());
+        assert!(cache.get("/users").is_some());
     }
 }

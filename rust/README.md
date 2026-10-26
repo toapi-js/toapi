@@ -132,9 +132,15 @@ let mut live = api.users.id(123).get().watch();             // Stream<Item = Res
   e.g. `api.users.post().body(new_user)`. A whole body sets all of its
   required fields; individual setters can still follow it.
 - Only GET calls have `.watch()`.
-- Awaiting a mutation invalidates the tags it returned and refetches the
-  watched queries before it resolves. Mutations by other clients arrive over
-  the invalidation stream and update `watch()` streams the same way.
+- Queries are cached by URL the moment they start, so concurrent queries for
+  the same URL share one request. Each response is parsed once and handed out
+  as a clone of the parsed value.
+- Awaiting a mutation deletes the cache entries carrying the tags it
+  returned, publishes their URLs to the `watch()` streams and resolves once
+  the watched ones were refetched. Mutations by other clients arrive over the
+  invalidation stream and are handled the same way.
+- Failed requests are dropped from the cache after 100ms, responses with a
+  TTL once it's over.
 - When the invalidation stream reconnects, the whole cache is dropped.
 
 ### Generated names
@@ -164,4 +170,3 @@ let user = api.client().call(GetUsersByIdRequest { id: 123 }).await?;
   aren't cached on the server.
 - Redis/Postgres invalidation buses (implement `InvalidationBus`).
 - NDJSON streaming responses, multipart bodies, array query parameters.
-- Deduplication of concurrent identical queries in the client.

@@ -1318,7 +1318,7 @@ name = "toapi-client"
 version = "0.1.0"
 dependencies = [
  "async-stream",
- "bytes",
+ "axum",
  "futures",
  "percent-encoding",
  "reqwest",
