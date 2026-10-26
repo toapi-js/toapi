@@ -17,6 +17,7 @@ toapi-client = { path = "crates/toapi-client", version = "0.1.0" }
 
 axum = "0.8"
 bytes = "1"
+dashmap = "6"
 futures = "0.3"
 async-stream = "0.3"
 prettyplease = "0.2"

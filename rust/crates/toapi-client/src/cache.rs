@@ -1,9 +1,13 @@
 use std::{
     any::Any,
-    collections::{HashMap, HashSet},
-    sync::Arc,
+    collections::HashSet,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
 };
 
+use dashmap::DashMap;
 use futures::future::{BoxFuture, Shared};
 
 use crate::Error;
@@ -27,10 +31,14 @@ struct Entry {
 
 /// Requests by URL, stored as soon as they are made (like the TypeScript
 /// client), so concurrent requests for the same URL share one request.
+///
+/// The cache is read far more often than written, so it's a sharded
+/// concurrent map: reads only take a read lock on one shard and don't block
+/// each other.
 #[derive(Default)]
 pub(crate) struct Cache {
-    entries: HashMap<String, Entry>,
-    next_id: u64,
+    entries: DashMap<String, Entry>,
+    next_id: AtomicU64,
 }
 
 impl Cache {
@@ -38,57 +46,66 @@ impl Cache {
         self.entries.get(url).map(|entry| entry.result.clone())
     }
 
-    pub fn next_id(&mut self) -> u64 {
-        self.next_id += 1;
-        self.next_id
-    }
-
-    pub fn insert(&mut self, url: String, id: u64, result: SharedResult) {
-        self.entries.insert(
-            url,
-            Entry {
-                id,
-                result,
-                tags: HashSet::new(),
-            },
-        );
+    /// The cached request for `url`, or the one `start` returns for a new
+    /// entry with the given id. Checking and inserting is atomic, so
+    /// concurrent callers share one request.
+    pub fn get_or_insert_with(
+        &self,
+        url: &str,
+        start: impl FnOnce(u64) -> SharedResult,
+    ) -> SharedResult {
+        // the common case: a read lock only
+        if let Some(result) = self.get(url) {
+            return result;
+        }
+        self.entries
+            .entry(url.to_string())
+            .or_insert_with(|| {
+                let id = self.next_id.fetch_add(1, Ordering::Relaxed) + 1;
+                Entry {
+                    id,
+                    result: start(id),
+                    tags: HashSet::new(),
+                }
+            })
+            .result
+            .clone()
     }
 
     /// Records the tags of a response, if its entry is still current.
-    pub fn set_tags(&mut self, url: &str, id: u64, tags: Vec<String>) {
-        if let Some(entry) = self.entries.get_mut(url).filter(|e| e.id == id) {
+    pub fn set_tags(&self, url: &str, id: u64, tags: Vec<String>) {
+        if let Some(mut entry) = self.entries.get_mut(url).filter(|e| e.id == id) {
             entry.tags = tags.into_iter().collect();
         }
     }
 
     /// Removes an entry if it is still the one with `id`.
-    pub fn remove(&mut self, url: &str, id: u64) -> bool {
-        if self.entries.get(url).is_some_and(|e| e.id == id) {
-            self.entries.remove(url);
-            true
-        } else {
-            false
-        }
+    pub fn remove(&self, url: &str, id: u64) -> bool {
+        self.entries.remove_if(url, |_, e| e.id == id).is_some()
     }
 
     /// Removes every entry carrying one of `tags` and returns their URLs.
-    pub fn invalidate_tags(&mut self, tags: &[String]) -> HashSet<String> {
+    pub fn invalidate_tags(&self, tags: &[String]) -> HashSet<String> {
         let tags: HashSet<String> = tags.iter().cloned().collect();
-        let urls: HashSet<String> = self
-            .entries
-            .iter()
-            .filter(|(_, entry)| !entry.tags.is_disjoint(&tags))
-            .map(|(url, _)| url.clone())
-            .collect();
-        for url in &urls {
-            self.entries.remove(url);
-        }
-        urls
+        self.remove_where(|entry| !entry.tags.is_disjoint(&tags))
     }
 
     /// Removes every entry and returns their URLs.
-    pub fn invalidate_all(&mut self) -> HashSet<String> {
-        self.entries.drain().map(|(url, _)| url).collect()
+    pub fn invalidate_all(&self) -> HashSet<String> {
+        self.remove_where(|_| true)
+    }
+
+    fn remove_where(&self, matches: impl Fn(&Entry) -> bool) -> HashSet<String> {
+        let mut removed = HashSet::new();
+        self.entries.retain(|url, entry| {
+            if matches(entry) {
+                removed.insert(url.clone());
+                false
+            } else {
+                true
+            }
+        });
+        removed
     }
 }
 
@@ -108,12 +125,30 @@ mod tests {
         tags.iter().map(|t| t.to_string()).collect()
     }
 
+    /// Inserts an entry and returns its id.
+    fn insert(cache: &Cache, url: &str, value: &'static str) -> u64 {
+        let mut id = 0;
+        drop(cache.get_or_insert_with(url, |new_id| {
+            id = new_id;
+            ready(value)
+        }));
+        id
+    }
+
+    #[test]
+    fn shares_entries() {
+        let cache = Cache::default();
+        let id = insert(&cache, "/users", "[]");
+        assert_ne!(id, 0);
+        // an existing entry is returned without starting a new request
+        drop(cache.get_or_insert_with("/users", |_| panic!("started a second request")));
+    }
+
     #[test]
     fn invalidates_by_tag() {
-        let mut cache = Cache::default();
-        let (a, b) = (cache.next_id(), cache.next_id());
-        cache.insert("/users".into(), a, ready("[]"));
-        cache.insert("/users/1".into(), b, ready("{}"));
+        let cache = Cache::default();
+        let a = insert(&cache, "/users", "[]");
+        let b = insert(&cache, "/users/1", "{}");
         cache.set_tags("/users", a, tags(&["users"]));
         cache.set_tags("/users/1", b, tags(&["user:1"]));
 
@@ -125,12 +160,10 @@ mod tests {
 
     #[test]
     fn late_responses_leave_newer_entries_alone() {
-        let mut cache = Cache::default();
-        let old = cache.next_id();
-        cache.insert("/users".into(), old, ready("old"));
+        let cache = Cache::default();
+        let old = insert(&cache, "/users", "old");
         cache.invalidate_all();
-        let new = cache.next_id();
-        cache.insert("/users".into(), new, ready("new"));
+        insert(&cache, "/users", "new");
 
         // the old request finishes after the invalidation
         cache.set_tags("/users", old, tags(&["users"]));

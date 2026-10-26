@@ -3,7 +3,7 @@ use std::{
     future::{Future, IntoFuture},
     marker::PhantomData,
     pin::Pin,
-    sync::{Arc, Mutex, MutexGuard},
+    sync::{Arc, Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -40,10 +40,10 @@ pub(crate) struct Inner {
     base_url: String,
     min_ttl: Duration,
     max_overdue_ttl: Duration,
-    cache: Mutex<Cache>,
+    cache: Cache,
     /// Subscriptions to the URLs of invalidated entries, held by the watch
     /// streams.
-    pub_sub: Mutex<PubSub>,
+    pub_sub: RwLock<PubSub>,
     listener: Mutex<Option<tokio::task::AbortHandle>>,
 }
 
@@ -56,25 +56,19 @@ impl Drop for Inner {
 }
 
 impl Inner {
-    fn cache(&self) -> MutexGuard<'_, Cache> {
-        self.cache.lock().unwrap_or_else(|e| e.into_inner())
+    fn pub_sub(&self) -> RwLockReadGuard<'_, PubSub> {
+        self.pub_sub.read().unwrap_or_else(|e| e.into_inner())
     }
 
-    fn pub_sub(&self) -> MutexGuard<'_, PubSub> {
-        self.pub_sub.lock().unwrap_or_else(|e| e.into_inner())
+    fn pub_sub_mut(&self) -> RwLockWriteGuard<'_, PubSub> {
+        self.pub_sub.write().unwrap_or_else(|e| e.into_inner())
     }
 
     /// The request for `url`: the cached one, or a new one that is cached
     /// right away, so concurrent callers share it.
     pub(crate) fn request<T: Cacheable>(self: &Arc<Self>, url: &str) -> SharedResult {
-        let mut cache = self.cache();
-        if let Some(result) = cache.get(url) {
-            return result;
-        }
-        let id = cache.next_id();
-        let result = self.spawn_request::<T>(url.to_string(), id);
-        cache.insert(url.to_string(), id, result.clone());
-        result
+        self.cache
+            .get_or_insert_with(url, |id| self.spawn_request::<T>(url.to_string(), id))
     }
 
     /// Runs the request in its own task, so it completes (and lands in the
@@ -105,7 +99,7 @@ impl Inner {
         let min_ttl = self.min_ttl;
         match loaded {
             Ok((_, meta)) => {
-                self.cache().set_tags(&url, id, meta.tags.clone());
+                self.cache.set_tags(&url, id, meta.tags.clone());
                 if let Some(expires_at) = meta.expires_at {
                     let delay = expires_at
                         .duration_since(SystemTime::now())
@@ -114,7 +108,7 @@ impl Inner {
                     tokio::spawn(async move {
                         tokio::time::sleep(delay).await;
                         let Some(inner) = inner.upgrade() else { return };
-                        if inner.cache().remove(&url, id) {
+                        if inner.cache.remove(&url, id) {
                             inner.publish(HashSet::from([url])).await;
                         }
                     });
@@ -124,7 +118,7 @@ impl Inner {
                 tokio::spawn(async move {
                     tokio::time::sleep(min_ttl).await;
                     if let Some(inner) = inner.upgrade() {
-                        inner.cache().remove(&url, id);
+                        inner.cache.remove(&url, id);
                     }
                 });
             }
@@ -147,14 +141,14 @@ impl Inner {
         if tags.is_empty() {
             return;
         }
-        let urls = self.cache().invalidate_tags(tags);
+        let urls = self.cache.invalidate_tags(tags);
         self.publish(urls).await;
     }
 
     /// Drops the whole cache, e.g. after the invalidation stream reconnected
     /// and may have missed invalidations.
     pub(crate) async fn invalidate_all(self: &Arc<Self>) {
-        let urls = self.cache().invalidate_all();
+        let urls = self.cache.invalidate_all();
         self.publish(urls).await;
     }
 
@@ -290,8 +284,8 @@ impl ClientBuilder {
             base_url: base_url.clone(),
             min_ttl: self.min_ttl,
             max_overdue_ttl: self.max_overdue_ttl,
-            cache: Mutex::default(),
-            pub_sub: Mutex::default(),
+            cache: Cache::default(),
+            pub_sub: RwLock::default(),
             listener: Mutex::default(),
         });
         if self.invalidation_stream {
@@ -471,14 +465,14 @@ struct Subscription {
 
 impl Subscription {
     fn new(inner: Arc<Inner>, callback: Callback) -> Self {
-        let id = inner.pub_sub().subscribe(callback);
+        let id = inner.pub_sub_mut().subscribe(callback);
         Subscription { inner, id }
     }
 }
 
 impl Drop for Subscription {
     fn drop(&mut self) {
-        self.inner.pub_sub().unsubscribe(self.id);
+        self.inner.pub_sub_mut().unsubscribe(self.id);
     }
 }
 
