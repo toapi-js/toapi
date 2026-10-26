@@ -21,12 +21,10 @@ use crate::{
     stream::spawn_listener,
 };
 
-/// How long a failed request stays cached, so a burst of identical requests
-/// doesn't hammer a failing server (like the TypeScript client's `minTTL`).
-const ERROR_TTL: Duration = Duration::from_millis(100);
-/// Expired responses are dropped up to this much later, so entries that
-/// expire together don't all refetch at the same moment.
-const MAX_OVERDUE: Duration = Duration::from_millis(1000);
+/// Default of [`ClientBuilder::min_ttl`], as in the TypeScript client.
+const DEFAULT_MIN_TTL: Duration = Duration::from_millis(100);
+/// Default of [`ClientBuilder::max_overdue_ttl`], as in the TypeScript client.
+const DEFAULT_MAX_OVERDUE_TTL: Duration = Duration::from_millis(1000);
 
 /// A response type the cache can hold.
 pub(crate) trait Cacheable: DeserializeOwned + Send + Sync + 'static {}
@@ -40,6 +38,8 @@ struct Meta {
 pub(crate) struct Inner {
     http: reqwest::Client,
     base_url: String,
+    min_ttl: Duration,
+    max_overdue_ttl: Duration,
     cache: Mutex<Cache>,
     /// Subscriptions to the URLs of invalidated entries, held by the watch
     /// streams.
@@ -102,6 +102,7 @@ impl Inner {
     fn settle(self: &Arc<Self>, url: &str, id: u64, loaded: &Result<(Value, Meta), Error>) {
         let inner = Arc::downgrade(self);
         let url = url.to_string();
+        let min_ttl = self.min_ttl;
         match loaded {
             Ok((_, meta)) => {
                 self.cache().set_tags(&url, id, meta.tags.clone());
@@ -109,7 +110,7 @@ impl Inner {
                     let delay = expires_at
                         .duration_since(SystemTime::now())
                         .unwrap_or_default()
-                        + jitter();
+                        + jitter(self.max_overdue_ttl);
                     tokio::spawn(async move {
                         tokio::time::sleep(delay).await;
                         let Some(inner) = inner.upgrade() else { return };
@@ -121,7 +122,7 @@ impl Inner {
             }
             Err(_) => {
                 tokio::spawn(async move {
-                    tokio::time::sleep(ERROR_TTL).await;
+                    tokio::time::sleep(min_ttl).await;
                     if let Some(inner) = inner.upgrade() {
                         inner.cache().remove(&url, id);
                     }
@@ -192,13 +193,13 @@ async fn load<T: Cacheable>(http: &reqwest::Client, url: &str) -> Result<(Value,
     Ok((Arc::new(value), meta))
 }
 
-/// A pseudo-random delay up to [`MAX_OVERDUE`].
-fn jitter() -> Duration {
+/// A pseudo-random delay up to `max`.
+fn jitter(max: Duration) -> Duration {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .subsec_nanos();
-    MAX_OVERDUE.mul_f64(f64::from(nanos % 1000) / 1000.0)
+    max.mul_f64(f64::from(nanos % 1000) / 1000.0)
 }
 
 async fn check_status(res: reqwest::Response) -> Result<reqwest::Response, Error> {
@@ -234,6 +235,8 @@ pub struct ClientBuilder {
     base_url: String,
     http: Option<reqwest::Client>,
     invalidation_stream: bool,
+    min_ttl: Duration,
+    max_overdue_ttl: Duration,
 }
 
 impl ClientBuilder {
@@ -253,6 +256,23 @@ impl ClientBuilder {
         self
     }
 
+    /// How long a failed request stays in the cache, so a burst of identical
+    /// queries doesn't hammer a failing server. Like the TypeScript client's
+    /// `minTTL`; defaults to 100ms.
+    pub fn min_ttl(mut self, min_ttl: Duration) -> Self {
+        self.min_ttl = min_ttl;
+        self
+    }
+
+    /// Responses with a TTL are dropped from the cache at a random point up
+    /// to this long after they expired, so entries that expire together
+    /// don't all refetch at once. Like the TypeScript client's
+    /// `maxOverdueTTL`; defaults to 1s.
+    pub fn max_overdue_ttl(mut self, max_overdue_ttl: Duration) -> Self {
+        self.max_overdue_ttl = max_overdue_ttl;
+        self
+    }
+
     /// # Panics
     ///
     /// When the invalidation stream is enabled and this isn't called from
@@ -268,6 +288,8 @@ impl ClientBuilder {
         let inner = Arc::new(Inner {
             http: http.clone(),
             base_url: base_url.clone(),
+            min_ttl: self.min_ttl,
+            max_overdue_ttl: self.max_overdue_ttl,
             cache: Mutex::default(),
             pub_sub: Mutex::default(),
             listener: Mutex::default(),
@@ -305,6 +327,8 @@ impl Client {
             base_url: base_url.into(),
             http: None,
             invalidation_stream: true,
+            min_ttl: DEFAULT_MIN_TTL,
+            max_overdue_ttl: DEFAULT_MAX_OVERDUE_TTL,
         }
     }
 

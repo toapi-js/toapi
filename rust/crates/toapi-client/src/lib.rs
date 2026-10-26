@@ -26,8 +26,9 @@
 //! - The response is parsed once and kept as the parsed value. Queries
 //!   resolve to an `Arc` of it, shared with the cache and every other query
 //!   for the URL. Mutations, which aren't cached, resolve to plain values.
-//!   Failed requests are dropped from the cache after 100ms, expired ones
-//!   once their TTL is over.
+//!   Failed requests are dropped from the cache after
+//!   [`ClientBuilder::min_ttl`], expired ones once their TTL is over, plus
+//!   up to [`ClientBuilder::max_overdue_ttl`].
 //! - A mutation invalidates its tags locally once it returns; mutations by
 //!   other clients arrive over the invalidation stream. Either way, the
 //!   entries carrying those tags are deleted and their URLs are published to

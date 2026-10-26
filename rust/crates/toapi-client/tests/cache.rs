@@ -209,3 +209,17 @@ async fn dropping_an_unpolled_watch_stream_unsubscribes() {
     client.invalidate(["counter"]).await;
     assert_eq!(hits.load(Ordering::SeqCst), 1);
 }
+
+#[tokio::test]
+async fn min_ttl_is_configurable() {
+    let (base_url, _) = start_server().await;
+    let client = Client::builder(&base_url)
+        .invalidation_stream(false)
+        .min_ttl(Duration::from_secs(5))
+        .build();
+
+    assert!(client.call(GetFailing).await.is_err());
+    // well past the default of 100ms, the failure is still cached
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert!(client.call(GetFailing).await.is_err());
+}

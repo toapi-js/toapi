@@ -141,8 +141,11 @@ let mut live = api.users.id(123).get().watch();             // Stream<Item = Res
   returned, publishes their URLs to the `watch()` streams and resolves once
   the watched ones were refetched. Mutations by other clients arrive over the
   invalidation stream and are handled the same way.
-- Failed requests are dropped from the cache after 100ms, responses with a
-  TTL once it's over.
+- Failed requests are dropped from the cache after `min_ttl` (100ms by
+  default), responses with a TTL once it's over, plus a random delay of up to
+  `max_overdue_ttl` (1s by default). Both are set on the client builder, like
+  `minTTL` and `maxOverdueTTL` in the TypeScript client:
+  `Client::builder(url).min_ttl(Duration::from_millis(500)).build()`.
 - When the invalidation stream reconnects, the whole cache is dropped.
 
 ### Generated names
