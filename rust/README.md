@@ -121,7 +121,7 @@ let users = api.users.get().limit(10).await?;               // GET /users?limit=
 let user  = api.users.id(123).put().name("Alicia").role(Role::Member).await?;
 api.users.id(123).delete().await?;
 
-let mut live = api.users.id(123).get().watch();             // Stream<Item = Result<User, Error>>
+let mut live = api.users.id(123).get().watch();             // Stream<Item = Result<Arc<User>, Error>>
 ```
 
 - Parameters are typed: `.id("123")` doesn't compile when `{id}` is a `u64`.
@@ -133,8 +133,10 @@ let mut live = api.users.id(123).get().watch();             // Stream<Item = Res
   required fields; individual setters can still follow it.
 - Only GET calls have `.watch()`.
 - Queries are cached by URL the moment they start, so concurrent queries for
-  the same URL share one request. Each response is parsed once and handed out
-  as a clone of the parsed value.
+  the same URL share one request. Each response is parsed once; queries and
+  `watch()` streams resolve to an `Arc` of the parsed value, shared with the
+  cache (`Arc<User>`, `Arc<Vec<User>>`). Mutations aren't cached and resolve
+  to plain values.
 - Awaiting a mutation deletes the cache entries carrying the tags it
   returned, publishes their URLs to the `watch()` streams and resolves once
   the watched ones were refetched. Mutations by other clients arrive over the

@@ -498,7 +498,10 @@ impl Generator {
                 pub fn watch(
                     self,
                 ) -> impl ::toapi_client::__private::Stream<
-                    Item = Result<<#request as ::toapi_client::Request>::Response, ::toapi_client::Error>,
+                    Item = Result<
+                        ::std::sync::Arc<<#request as ::toapi_client::Request>::Response>,
+                        ::toapi_client::Error,
+                    >,
                 > + Send + 'static {
                     let client = self.__client.clone();
                     client.call(self.into_request()).watch()

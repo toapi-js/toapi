@@ -98,37 +98,42 @@ async fn shares_requests_and_parses_once() {
     // concurrent requests share the first one
     let results = join_all((0..5).map(|_| client.call(GetCounter).into_future())).await;
     for result in results {
-        assert_eq!(result.unwrap(), Counter(1));
+        assert_eq!(*result.unwrap(), Counter(1));
     }
     assert_eq!(hits.load(Ordering::SeqCst), 1);
 
     // later requests are served from the parsed value
     for _ in 0..3 {
-        assert_eq!(client.call(GetCounter).await.unwrap(), Counter(1));
+        assert_eq!(*client.call(GetCounter).await.unwrap(), Counter(1));
     }
     assert_eq!(hits.load(Ordering::SeqCst), 1);
     assert_eq!(PARSED.load(Ordering::SeqCst), 1);
 
+    // and get the very same parsed value, not a copy
+    let a = client.call(GetCounter).await.unwrap();
+    let b = client.call(GetCounter).await.unwrap();
+    assert!(Arc::ptr_eq(&a, &b));
+
     // invalidation drops the entry, the next request refetches
     client.invalidate(["counter"]).await;
-    assert_eq!(client.call(GetCounter).await.unwrap(), Counter(2));
+    assert_eq!(*client.call(GetCounter).await.unwrap(), Counter(2));
     assert_eq!(hits.load(Ordering::SeqCst), 2);
     assert_eq!(PARSED.load(Ordering::SeqCst), 2);
 
     // a watch stream refetches on invalidation, and the refetch is shared
     let mut watch = Box::pin(client.call(GetCounter).watch());
-    assert_eq!(watch.next().await.unwrap().unwrap(), Counter(2));
+    assert_eq!(*watch.next().await.unwrap().unwrap(), Counter(2));
     client.invalidate(["counter"]).await;
     // invalidate resolves once the watched query was refetched
     assert_eq!(hits.load(Ordering::SeqCst), 3);
-    assert_eq!(watch.next().await.unwrap().unwrap(), Counter(3));
-    assert_eq!(client.call(GetCounter).await.unwrap(), Counter(3));
+    assert_eq!(*watch.next().await.unwrap().unwrap(), Counter(3));
+    assert_eq!(*client.call(GetCounter).await.unwrap(), Counter(3));
     assert_eq!(hits.load(Ordering::SeqCst), 3);
     assert_eq!(PARSED.load(Ordering::SeqCst), 3);
 
     // other tags leave the entry alone
     client.invalidate(["something-else"]).await;
-    assert_eq!(client.call(GetCounter).await.unwrap(), Counter(3));
+    assert_eq!(*client.call(GetCounter).await.unwrap(), Counter(3));
     assert_eq!(hits.load(Ordering::SeqCst), 3);
 }
 
@@ -146,5 +151,5 @@ async fn drops_failed_requests_shortly_after() {
     assert!(client.call(GetFailing).await.is_err());
 
     tokio::time::sleep(Duration::from_millis(200)).await;
-    assert_eq!(client.call(GetFailing).await.unwrap(), 1);
+    assert_eq!(*client.call(GetFailing).await.unwrap(), 1);
 }

@@ -57,7 +57,7 @@ async fn queries_and_mutations() {
     let id = alice.id;
 
     let fetched = api.users.id(id).get().await.unwrap();
-    assert_eq!(fetched, alice);
+    assert_eq!(*fetched, alice);
 
     let renamed = api
         .users
@@ -74,7 +74,7 @@ async fn queries_and_mutations() {
     assert_eq!(fetched.name, "Alicia");
 
     let users = api.users.get().limit(10).await.unwrap();
-    assert_eq!(users, vec![renamed]);
+    assert_eq!(*users, vec![renamed]);
 
     api.users.id(id).delete().await.unwrap();
     let err = api.users.id(id).get().await.unwrap_err();
@@ -137,7 +137,7 @@ async fn whole_query_and_body() {
         .query(GetUsersQuery { limit: Some(1) })
         .await
         .unwrap();
-    assert_eq!(users, vec![dora.clone()]);
+    assert_eq!(*users, vec![dora.clone()]);
 
     // setters still work after a whole struct, and the last one wins
     assert_eq!(
@@ -180,7 +180,7 @@ async fn request_structs_run_on_the_client() {
         .call(GetUsersByIdRequest { id: bob.id })
         .await
         .unwrap();
-    assert_eq!(fetched, bob);
+    assert_eq!(*fetched, bob);
 }
 
 #[tokio::test]
@@ -206,7 +206,7 @@ async fn watch_follows_own_mutations() {
     let api = api(&base_url, "alice");
 
     let mut users = Box::pin(api.users.get().watch());
-    assert_eq!(next(&mut users).await.unwrap(), vec![]);
+    assert_eq!(*next(&mut users).await.unwrap(), vec![]);
 
     let bob = api
         .users
@@ -216,7 +216,7 @@ async fn watch_follows_own_mutations() {
         .await
         .unwrap();
     // the mutation resolves after the watched query was refetched
-    assert_eq!(next(&mut users).await.unwrap(), vec![bob]);
+    assert_eq!(*next(&mut users).await.unwrap(), vec![bob]);
 }
 
 #[tokio::test]

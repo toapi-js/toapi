@@ -124,10 +124,10 @@ impl Inner {
         }
     }
 
-    /// The response for `url`, parsed once and cloned out of the cache.
-    async fn query<T: Cacheable + Clone>(self: &Arc<Self>, url: &str) -> Result<T, Error> {
+    /// The response for `url`: the parsed value in the cache, shared.
+    async fn query<T: Cacheable>(self: &Arc<Self>, url: &str) -> Result<Arc<T>, Error> {
         let value = self.request::<T>(url).await?;
-        value.downcast_ref::<T>().cloned().ok_or_else(|| {
+        value.downcast::<T>().map_err(|_| {
             Error::Internal(format!(
                 "the cache entry for {url} holds a different response type"
             ))
@@ -365,12 +365,15 @@ pub struct QueryCall<R> {
 impl<R> QueryCall<R>
 where
     R: Request<Kind = Query>,
-    R::Response: Clone + Send + Sync + 'static,
+    R::Response: Send + Sync + 'static,
 {
     /// A stream that yields the response now and again every time it is
     /// invalidated, by a mutation of this client or through the
     /// invalidation stream.
-    pub fn watch(self) -> impl Stream<Item = Result<R::Response, Error>> + Send + 'static {
+    ///
+    /// The responses are shared with the cache, like the result of awaiting
+    /// the query.
+    pub fn watch(self) -> impl Stream<Item = Result<Arc<R::Response>, Error>> + Send + 'static {
         let QueryCall { inner, url, .. } = self;
         async_stream::stream! {
             let url = match url {
@@ -397,12 +400,14 @@ where
     }
 }
 
+/// Resolves to the parsed response, shared with the cache and every other
+/// query for the same URL.
 impl<R> IntoFuture for QueryCall<R>
 where
     R: Request<Kind = Query>,
-    R::Response: Clone + Send + Sync + 'static,
+    R::Response: Send + Sync + 'static,
 {
-    type Output = Result<R::Response, Error>;
+    type Output = Result<Arc<R::Response>, Error>;
     type IntoFuture = BoxFuture<Self::Output>;
 
     fn into_future(self) -> Self::IntoFuture {

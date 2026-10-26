@@ -23,9 +23,11 @@
 //! - The first query for a URL is cached right away, as a shared future, so
 //!   concurrent queries for the same URL share one request. The request runs
 //!   in its own task and completes even if nobody waits for it anymore.
-//! - The response is parsed once and kept as the parsed value; every query
-//!   for the URL gets a clone of it. Failed requests are dropped from the
-//!   cache after 100ms, expired ones once their TTL is over.
+//! - The response is parsed once and kept as the parsed value. Queries
+//!   resolve to an `Arc` of it, shared with the cache and every other query
+//!   for the URL. Mutations, which aren't cached, resolve to plain values.
+//!   Failed requests are dropped from the cache after 100ms, expired ones
+//!   once their TTL is over.
 //! - A mutation invalidates its tags locally once it returns; mutations by
 //!   other clients arrive over the invalidation stream. Either way, the
 //!   entries carrying those tags are deleted and their URLs are published to
