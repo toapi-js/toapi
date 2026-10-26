@@ -8,6 +8,7 @@ repository.workspace = true
 
 [dependencies]
 toapi-core.workspace = true
+toapi-macros.workspace = true
 async-stream.workspace = true
 bytes.workspace = true
 futures.workspace = true

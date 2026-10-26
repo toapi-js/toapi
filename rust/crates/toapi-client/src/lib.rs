@@ -1,11 +1,14 @@
 //! Typed client for a Toapi API.
 //!
-//! `toapi-codegen` generates the API specific code from the OpenAPI
-//! document: an `Api` path tree with call builders, plus one request struct
-//! per route and method (e.g. `GetUsersByIdRequest`). This crate runs them:
+//! [`generate!`] generates the API specific code from the OpenAPI document at
+//! compile time: an `Api` path tree with call builders, plus one request
+//! struct per route and method (e.g. `GetUsersByIdRequest`). This crate runs
+//! them:
 //!
 //! ```ignore
-//! let api = my_api_client::Api::new("http://localhost:3000/api");
+//! toapi_client::generate!("../server/openapi.json");
+//!
+//! let api = Api::new("http://localhost:3000/api");
 //!
 //! let user = api.users.id(1).get().await?;
 //! let mut live = api.users.id(1).get().watch();
@@ -31,6 +34,7 @@ pub use client::{Client, ClientBuilder, MutationCall, QueryCall};
 pub use error::Error;
 pub use request::{Kind, Mutation, Query, Request};
 pub use reqwest::Method;
+pub use toapi_macros::generate;
 
 pub mod state;
 

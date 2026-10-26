@@ -9,7 +9,7 @@ users-server (axum handlers + toapi-server)
    │  api().openapi()
    ▼
 openapi.json  (committed; a test fails when it is out of date)
-   │  toapi-codegen in build.rs
+   │  toapi_client::generate!(..) (or toapi-codegen in build.rs)
    ▼
 users-client  (api.users.id(1).get() path tree + request types + toapi-client runtime)
 ```
@@ -24,8 +24,9 @@ same as in the TypeScript packages.
 |---|---|
 | `toapi-core` | Wire constants and the route naming scheme shared by everything else |
 | `toapi-server` | `Api` builder on axum, `Cached`/`Invalidates` responses, invalidation stream, OpenAPI |
-| `toapi-codegen` | OpenAPI → path tree, call builders and request types, for build scripts |
-| `toapi-client` | `Client` with tag cache, `watch()` streams and the invalidation stream listener |
+| `toapi-codegen` | OpenAPI → path tree, call builders and request types; used by `generate!` and build scripts |
+| `toapi-client` | `Client` with tag cache, `watch()` streams and the invalidation stream listener; re-exports `generate!` |
+| `toapi-macros` | `generate!`: runs `toapi-codegen` at compile time |
 
 ## Server: define the API
 
@@ -85,7 +86,19 @@ UPDATE_OPENAPI=1 cargo test -p users-server --test openapi
 ## Client
 
 ```rust
-// build.rs
+// src/lib.rs
+toapi_client::generate!("../users-server/openapi.json");
+```
+
+`generate!` reads the OpenAPI document at compile time (the path is relative
+to the crate's `Cargo.toml`) and expands to the client code. The crate is
+rebuilt when the document changes.
+
+Alternatively, generate the code from a build script, which leaves a readable
+file in `OUT_DIR` that go-to-definition can jump into:
+
+```rust
+// build.rs (with toapi-codegen as a build-dependency)
 fn main() {
     toapi_codegen::build("../users-server/openapi.json").unwrap();
 }

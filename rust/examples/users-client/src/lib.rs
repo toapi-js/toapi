@@ -52,4 +52,4 @@
 //! # }
 //! ```
 
-include!(concat!(env!("OUT_DIR"), "/toapi_client.rs"));
+toapi_client::generate!("../users-server/openapi.json");

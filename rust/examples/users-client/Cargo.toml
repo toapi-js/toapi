@@ -8,9 +8,6 @@ publish = false
 [dependencies]
 toapi-client.workspace = true
 
-[build-dependencies]
-toapi-codegen.workspace = true
-
 [dev-dependencies]
 users-server = { path = "../users-server" }
 axum.workspace = true

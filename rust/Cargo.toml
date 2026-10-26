@@ -12,6 +12,7 @@ repository = "https://github.com/toapi-js/toapi"
 toapi-core = { path = "crates/toapi-core", version = "0.1.0" }
 toapi-server = { path = "crates/toapi-server", version = "0.1.0" }
 toapi-codegen = { path = "crates/toapi-codegen", version = "0.1.0" }
+toapi-macros = { path = "crates/toapi-macros", version = "0.1.0" }
 toapi-client = { path = "crates/toapi-client", version = "0.1.0" }
 
 axum = "0.8"
