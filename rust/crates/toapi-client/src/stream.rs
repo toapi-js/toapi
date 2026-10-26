@@ -1,4 +1,4 @@
-use std::{sync::Weak, time::Duration};
+use std::{collections::HashSet, sync::Weak, time::Duration};
 
 use futures::StreamExt;
 
@@ -34,7 +34,7 @@ pub(crate) fn spawn_listener(
                         buffer.extend_from_slice(&chunk);
                         while let Some(end) = buffer.iter().position(|b| *b == b'\n') {
                             let line: Vec<u8> = buffer.drain(..=end).collect();
-                            let tags: Vec<String> = String::from_utf8_lossy(&line)
+                            let tags: HashSet<String> = String::from_utf8_lossy(&line)
                                 .split_whitespace()
                                 .map(String::from)
                                 .collect();

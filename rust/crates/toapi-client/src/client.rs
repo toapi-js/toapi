@@ -31,7 +31,7 @@ pub(crate) trait Cacheable: DeserializeOwned + Send + Sync + 'static {}
 impl<T: DeserializeOwned + Send + Sync + 'static> Cacheable for T {}
 
 struct Meta {
-    tags: Vec<String>,
+    tags: HashSet<String>,
     expires_at: Option<SystemTime>,
 }
 
@@ -78,10 +78,21 @@ impl Inner {
         let inner = Arc::downgrade(self);
         let task = tokio::spawn(async move {
             let loaded = load::<T>(&http, &url).await;
-            if let Some(inner) = inner.upgrade() {
-                inner.settle(&url, id, &loaded);
+            let inner = inner.upgrade();
+            match loaded {
+                Ok((value, meta)) => {
+                    if let Some(inner) = inner {
+                        inner.settle(url, id, meta);
+                    }
+                    Ok(value)
+                }
+                Err(error) => {
+                    if let Some(inner) = inner {
+                        inner.drop_failed(url, id);
+                    }
+                    Err(error)
+                }
             }
-            loaded.map(|(value, _)| value)
         });
         async move {
             task.await
@@ -91,38 +102,36 @@ impl Inner {
         .shared()
     }
 
-    /// Records the tags of a finished request, schedules its expiry, or drops
-    /// it shortly after a failure.
-    fn settle(self: &Arc<Self>, url: &str, id: u64, loaded: &Result<(Value, Meta), Error>) {
+    /// Records the tags of a successful request and schedules its expiry.
+    fn settle(self: &Arc<Self>, url: String, id: u64, meta: Meta) {
+        self.cache.set_tags(&url, id, meta.tags);
+        let Some(expires_at) = meta.expires_at else {
+            return;
+        };
+        let delay = expires_at
+            .duration_since(SystemTime::now())
+            .unwrap_or_default()
+            + jitter(self.max_overdue_ttl);
         let inner = Arc::downgrade(self);
-        let url = url.to_string();
+        tokio::spawn(async move {
+            tokio::time::sleep(delay).await;
+            let Some(inner) = inner.upgrade() else { return };
+            if inner.cache.remove(&url, id) {
+                inner.publish(HashSet::from([url])).await;
+            }
+        });
+    }
+
+    /// Drops a failed request from the cache after `min_ttl`.
+    fn drop_failed(self: &Arc<Self>, url: String, id: u64) {
         let min_ttl = self.min_ttl;
-        match loaded {
-            Ok((_, meta)) => {
-                self.cache.set_tags(&url, id, meta.tags.clone());
-                if let Some(expires_at) = meta.expires_at {
-                    let delay = expires_at
-                        .duration_since(SystemTime::now())
-                        .unwrap_or_default()
-                        + jitter(self.max_overdue_ttl);
-                    tokio::spawn(async move {
-                        tokio::time::sleep(delay).await;
-                        let Some(inner) = inner.upgrade() else { return };
-                        if inner.cache.remove(&url, id) {
-                            inner.publish(HashSet::from([url])).await;
-                        }
-                    });
-                }
+        let inner = Arc::downgrade(self);
+        tokio::spawn(async move {
+            tokio::time::sleep(min_ttl).await;
+            if let Some(inner) = inner.upgrade() {
+                inner.cache.remove(&url, id);
             }
-            Err(_) => {
-                tokio::spawn(async move {
-                    tokio::time::sleep(min_ttl).await;
-                    if let Some(inner) = inner.upgrade() {
-                        inner.cache.remove(&url, id);
-                    }
-                });
-            }
-        }
+        });
     }
 
     /// The response for `url`: the parsed value in the cache, shared.
@@ -137,7 +146,7 @@ impl Inner {
 
     /// Drops the entries carrying any of `tags` and resolves once the
     /// subscribers refetched them.
-    pub(crate) async fn invalidate_tags(self: &Arc<Self>, tags: &[String]) {
+    pub(crate) async fn invalidate_tags(self: &Arc<Self>, tags: &HashSet<String>) {
         if tags.is_empty() {
             return;
         }
@@ -206,7 +215,7 @@ async fn check_status(res: reqwest::Response) -> Result<reqwest::Response, Error
     }
 }
 
-fn header_tags(res: &reqwest::Response) -> Vec<String> {
+fn header_tags(res: &reqwest::Response) -> HashSet<String> {
     res.headers()
         .get(TAGS_HEADER)
         .and_then(|v| v.to_str().ok())
@@ -371,7 +380,7 @@ impl Client {
         I: IntoIterator,
         I::Item: Into<String>,
     {
-        let tags: Vec<String> = tags.into_iter().map(Into::into).collect();
+        let tags: HashSet<String> = tags.into_iter().map(Into::into).collect();
         self.inner.invalidate_tags(&tags).await;
     }
 }

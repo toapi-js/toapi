@@ -73,9 +73,9 @@ impl Cache {
     }
 
     /// Records the tags of a response, if its entry is still current.
-    pub fn set_tags(&self, url: &str, id: u64, tags: Vec<String>) {
+    pub fn set_tags(&self, url: &str, id: u64, tags: HashSet<String>) {
         if let Some(mut entry) = self.entries.get_mut(url).filter(|e| e.id == id) {
-            entry.tags = tags.into_iter().collect();
+            entry.tags = tags;
         }
     }
 
@@ -85,9 +85,8 @@ impl Cache {
     }
 
     /// Removes every entry carrying one of `tags` and returns their URLs.
-    pub fn invalidate_tags(&self, tags: &[String]) -> HashSet<String> {
-        let tags: HashSet<String> = tags.iter().cloned().collect();
-        self.remove_where(|entry| !entry.tags.is_disjoint(&tags))
+    pub fn invalidate_tags(&self, tags: &HashSet<String>) -> HashSet<String> {
+        self.remove_where(|entry| !entry.tags.is_disjoint(tags))
     }
 
     /// Removes every entry and returns their URLs.
@@ -121,7 +120,7 @@ mod tests {
             .shared()
     }
 
-    fn tags(tags: &[&str]) -> Vec<String> {
+    fn tags(tags: &[&str]) -> HashSet<String> {
         tags.iter().map(|t| t.to_string()).collect()
     }
 
