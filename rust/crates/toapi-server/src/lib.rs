@@ -21,6 +21,7 @@
 //! hashing) matches the TypeScript `@toapi/server`.
 
 mod api;
+mod cache;
 mod error;
 mod handler;
 mod invalidation;
@@ -28,9 +29,9 @@ mod openapi;
 mod response;
 
 pub use api::{Api, MethodRoutes, delete, get, patch, post, put};
+pub use cache::{Cache, Invalidation, PubSub, RequestCache};
 pub use error::HttpError;
 pub use handler::{DocumentedHandler, HandlerOutput, MutationKind, QueryKind};
-pub use invalidation::{InMemoryBus, Invalidation, InvalidationBus, Invalidator};
 pub use openapi::{Generators, OperationDoc, OperationInput};
 pub use response::{Cached, Invalidates};
 

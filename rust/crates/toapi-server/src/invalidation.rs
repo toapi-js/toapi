@@ -9,8 +9,8 @@ use std::{
 
 use axum::{
     body::Body,
-    extract::{FromRequestParts, Request, State},
-    http::{HeaderMap, HeaderValue, StatusCode, header, request::Parts},
+    extract::{Request, State},
+    http::{HeaderMap, HeaderValue, header, request::Parts},
     middleware::Next,
     response::{IntoResponse, Response},
 };
@@ -20,111 +20,17 @@ use toapi_core::{EXPIRES_AT_HEADER, SESSION_COOKIE_NAME, TAGS_CONTENT_TYPE, TAGS
 use tokio::sync::{broadcast, mpsc};
 use tokio_stream::wrappers::ReceiverStream;
 
-use crate::response::{TagInfo, TagKind};
-
-/// A set of invalidated tags.
-#[derive(Debug, Clone)]
-pub struct Invalidation {
-    pub tags: Vec<String>,
-    /// The session of the client that caused the invalidation. Its own
-    /// invalidation stream skips it, because the client already invalidated
-    /// its cache when the mutation returned.
-    pub origin: Option<String>,
-}
-
-/// Distributes invalidations to every invalidation stream.
-///
-/// [`InMemoryBus`] covers a single server process; for several processes,
-/// implement this on top of Redis pub/sub or Postgres `LISTEN/NOTIFY` and
-/// forward the messages into a broadcast channel.
-pub trait InvalidationBus: Send + Sync + 'static {
-    fn publish(&self, invalidation: Invalidation);
-    fn subscribe(&self) -> broadcast::Receiver<Invalidation>;
-}
-
-/// An [`InvalidationBus`] for a single process, backed by a broadcast channel.
-pub struct InMemoryBus {
-    sender: broadcast::Sender<Invalidation>,
-}
-
-impl InMemoryBus {
-    pub fn new() -> Self {
-        Self::with_capacity(1024)
-    }
-
-    /// `capacity` is how many invalidations a slow stream may fall behind
-    /// before it is closed (the client then reconnects and drops its cache).
-    pub fn with_capacity(capacity: usize) -> Self {
-        InMemoryBus {
-            sender: broadcast::channel(capacity).0,
-        }
-    }
-}
-
-impl Default for InMemoryBus {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl InvalidationBus for InMemoryBus {
-    fn publish(&self, invalidation: Invalidation) {
-        // no receivers is fine: nobody is listening
-        let _ = self.sender.send(invalidation);
-    }
-
-    fn subscribe(&self) -> broadcast::Receiver<Invalidation> {
-        self.sender.subscribe()
-    }
-}
-
-/// Invalidates tags from inside a handler or from a background task.
-///
-/// As an extractor it remembers the calling client's session, so that client
-/// isn't sent its own invalidation.
-#[derive(Clone)]
-pub struct Invalidator {
-    bus: Arc<dyn InvalidationBus>,
-    origin: Option<String>,
-}
-
-impl Invalidator {
-    pub(crate) fn new(bus: Arc<dyn InvalidationBus>, origin: Option<String>) -> Self {
-        Invalidator { bus, origin }
-    }
-
-    pub fn invalidate<I>(&self, tags: I)
-    where
-        I: IntoIterator,
-        I::Item: Into<String>,
-    {
-        let tags: Vec<String> = tags.into_iter().map(Into::into).collect();
-        if !tags.is_empty() {
-            self.bus.publish(Invalidation {
-                tags,
-                origin: self.origin.clone(),
-            });
-        }
-    }
-}
-
-impl<S: Send + Sync> FromRequestParts<S> for Invalidator {
-    type Rejection = (StatusCode, &'static str);
-
-    async fn from_request_parts(parts: &mut Parts, _: &S) -> Result<Self, Self::Rejection> {
-        parts.extensions.get::<Invalidator>().cloned().ok_or((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Invalidator used outside of a toapi router",
-        ))
-    }
-}
+use crate::{
+    cache::{Cache, RequestCache},
+    response::{TagInfo, TagKind},
+};
 
 pub(crate) type TagFilter = Arc<dyn Fn(&str) -> bool + Send + Sync>;
 pub(crate) type FilterFactory =
     Arc<dyn Fn(Parts) -> Pin<Box<dyn Future<Output = TagFilter> + Send>> + Send + Sync>;
 
 pub(crate) struct StreamConfig {
-    pub bus: Arc<dyn InvalidationBus>,
+    pub cache: Arc<dyn Cache>,
     pub throttle: Duration,
     pub keepalive: Duration,
     pub filter: Option<FilterFactory>,
@@ -180,7 +86,7 @@ pub(crate) async fn tag_middleware(
 ) -> Response {
     let origin = session_id(req.headers());
     req.extensions_mut()
-        .insert(Invalidator::new(config.bus.clone(), origin.clone()));
+        .insert(RequestCache::new(config.cache.clone(), origin.clone()));
     let mut res = next.run(req).await;
     let Some(info) = res.extensions_mut().remove::<TagInfo>() else {
         return res;
@@ -201,10 +107,7 @@ pub(crate) async fn tag_middleware(
         }
     }
     if info.kind == TagKind::Invalidate && res.status().is_success() && !info.tags.is_empty() {
-        config.bus.publish(Invalidation {
-            tags: info.tags,
-            origin,
-        });
+        config.cache.invalidate(info.tags, origin);
     }
     res
 }
@@ -214,7 +117,7 @@ pub(crate) async fn tag_middleware(
 ///
 /// The first batch after a quiet period is sent right away; invalidations
 /// arriving within the following `throttle` window are sent as one batch at
-/// its end. A stream that falls too far behind the bus is closed, because it
+/// its end. A stream that falls too far behind the cache is closed, because it
 /// can't know what it missed; the client then reconnects and drops its cache.
 pub(crate) async fn invalidation_stream(config: Arc<StreamConfig>, req: Request) -> Response {
     let (parts, _) = req.into_parts();
@@ -223,7 +126,7 @@ pub(crate) async fn invalidation_stream(config: Arc<StreamConfig>, req: Request)
         Some(factory) => Some(factory(parts).await),
         None => None,
     };
-    let mut subscription = config.bus.subscribe();
+    let mut subscription = config.cache.subscribe();
     let (tx, rx) = mpsc::channel::<Result<Bytes, Infallible>>(16);
 
     let origin = id.clone();

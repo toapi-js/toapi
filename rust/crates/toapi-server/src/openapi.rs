@@ -8,7 +8,7 @@ use axum::{
 use schemars::{JsonSchema, Schema, SchemaGenerator, generate::SchemaSettings};
 use serde_json::{Map, Value, json};
 
-use crate::invalidation::Invalidator;
+use crate::cache::RequestCache;
 
 /// Schema generators used while building the OpenAPI document.
 pub struct Generators {
@@ -47,7 +47,7 @@ pub struct OperationDoc {
 /// Implemented by every extractor a handler takes.
 ///
 /// The provided implementations cover axum's `Path`, `Query`, `Json`,
-/// `State`, `Extension`, `HeaderMap`, `Method`, `Uri` and [`Invalidator`].
+/// `State`, `Extension`, `HeaderMap`, `Method`, `Uri` and [`RequestCache`].
 /// Custom extractors such as an auth session implement it too, usually with
 /// the default (empty) body or by adding a `401` response:
 ///
@@ -87,7 +87,7 @@ impl<T> OperationInput for Extension<T> {}
 impl OperationInput for HeaderMap {}
 impl OperationInput for Method {}
 impl OperationInput for Uri {}
-impl OperationInput for Invalidator {}
+impl OperationInput for RequestCache {}
 
 /// The parameter names a `Path<T>` schema provides, matched against the
 /// placeholders of the route template.

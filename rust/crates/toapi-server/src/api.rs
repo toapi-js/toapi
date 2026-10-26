@@ -11,11 +11,9 @@ use axum::{
 use toapi_core::{INVALIDATIONS_ROUTE, OPENAPI_ROUTE};
 
 use crate::{
+    cache::{Cache, PubSub},
     handler::{DocumentedHandler, MutationKind, QueryKind},
-    invalidation::{
-        FilterFactory, InMemoryBus, InvalidationBus, Invalidator, StreamConfig, TagFilter,
-        invalidation_stream, tag_middleware,
-    },
+    invalidation::{FilterFactory, StreamConfig, TagFilter, invalidation_stream, tag_middleware},
     openapi::{DocumentedOperation, Generators, OperationDoc, build_document, path_parameters},
 };
 
@@ -94,7 +92,7 @@ pub struct Api<S> {
     title: String,
     version: String,
     routes: Vec<RouteEntry<S>>,
-    bus: Arc<dyn InvalidationBus>,
+    cache: Arc<dyn Cache>,
     throttle: Duration,
     keepalive: Duration,
     filter: Option<FilterFactory>,
@@ -113,7 +111,7 @@ impl<S: Clone + Send + Sync + 'static> Api<S> {
             title: "API".into(),
             version: "0.0.0".into(),
             routes: Vec::new(),
-            bus: Arc::new(InMemoryBus::new()),
+            cache: Arc::new(PubSub::new()),
             throttle: Duration::from_millis(500),
             keepalive: Duration::from_secs(10),
             filter: None,
@@ -169,9 +167,9 @@ impl<S: Clone + Send + Sync + 'static> Api<S> {
         self
     }
 
-    /// Replaces the default [`InMemoryBus`], e.g. with one backed by Redis.
-    pub fn invalidation_bus(mut self, bus: impl InvalidationBus) -> Self {
-        self.bus = Arc::new(bus);
+    /// Replaces the default [`PubSub`] cache, e.g. with one backed by Redis.
+    pub fn cache(mut self, cache: impl Cache) -> Self {
+        self.cache = Arc::new(cache);
         self
     }
 
@@ -210,10 +208,23 @@ impl<S: Clone + Send + Sync + 'static> Api<S> {
         self
     }
 
-    /// An [`Invalidator`] for invalidating tags outside of a request, e.g.
-    /// from a background job.
-    pub fn invalidator(&self) -> Invalidator {
-        Invalidator::new(self.bus.clone(), None)
+    /// The [`Cache`], e.g. to invalidate tags from a background job. Keep
+    /// the handle before turning the API into a router.
+    pub fn cache_handle(&self) -> Arc<dyn Cache> {
+        self.cache.clone()
+    }
+
+    /// Invalidates tags outside of a request, like the TypeScript server's
+    /// `api.invalidate`.
+    pub fn invalidate<I>(&self, tags: I)
+    where
+        I: IntoIterator,
+        I::Item: Into<String>,
+    {
+        let tags: Vec<String> = tags.into_iter().map(Into::into).collect();
+        if !tags.is_empty() {
+            self.cache.invalidate(tags, None);
+        }
     }
 
     /// The OpenAPI 3.1 document of the API.
@@ -238,7 +249,7 @@ impl<S: Clone + Send + Sync + 'static> Api<S> {
     pub fn into_router(self) -> Router<S> {
         let openapi = Arc::new(self.openapi());
         let config = Arc::new(StreamConfig {
-            bus: self.bus,
+            cache: self.cache,
             throttle: self.throttle,
             keepalive: self.keepalive,
             filter: self.filter,

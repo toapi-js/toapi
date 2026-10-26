@@ -66,13 +66,18 @@ let router = axum::Router::new()
 
 - Every extractor implements `OperationInput`, which feeds the OpenAPI
   document. `Path`, `Query`, `Json`, `State`, `Extension`, `HeaderMap`,
-  `Method`, `Uri` and `Invalidator` are covered; custom extractors (auth)
+  `Method`, `Uri` and `RequestCache` are covered; custom extractors (auth)
   implement it themselves, e.g. to add a `401` response.
 - `route` panics when the `{placeholders}` don't match the handler's `Path<T>`.
-- `Invalidator` invalidates tags imperatively, from a handler or (via
-  `api.invalidator()`) from a background job.
-- `.hash_secret(..)`, `.throttle(..)`, `.keepalive(..)`, `.invalidation_filter(..)`
-  and `.invalidation_bus(..)` configure the invalidation stream.
+- Invalidations go through the `Cache`, like in the TypeScript server. The
+  default `PubSub` caches nothing yet and passes invalidations on to the
+  invalidation streams of this process; `.cache(..)` replaces it.
+- Tags can be invalidated imperatively: in a handler through the
+  `RequestCache` extractor (`cache.invalidate(["users"])`, attributed to the
+  calling client like `req.invalidate`), elsewhere through
+  `api.invalidate(..)` or `api.cache_handle()`.
+- `.hash_secret(..)`, `.throttle(..)`, `.keepalive(..)` and
+  `.invalidation_filter(..)` configure the invalidation stream.
 
 ## OpenAPI
 
@@ -194,8 +199,8 @@ cargo test -p toapi-client --target wasm32-unknown-unknown --test wasm
 
 ## Not covered yet
 
-- Server-side response caching (the TypeScript server's `Cache`); tags and
+- Server-side response caching (`get`/`set` of the TypeScript server's `Cache`); tags and
   TTLs are sent to clients and invalidations are published, but GET responses
   aren't cached on the server.
-- Redis/Postgres invalidation buses (implement `InvalidationBus`).
+- Redis/Postgres caches (implement `Cache`).
 - NDJSON streaming responses, multipart bodies, array query parameters.
