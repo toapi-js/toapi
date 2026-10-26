@@ -130,10 +130,10 @@ async fn request_structs_run_on_the_client() {
             role: Role::Member,
         },
     };
-    let bob = api.client().mutate(request).await.unwrap();
+    let bob = api.client().call(request).await.unwrap();
     let fetched = api
         .client()
-        .query(GetUsersByIdRequest { id: bob.id })
+        .call(GetUsersByIdRequest { id: bob.id })
         .await
         .unwrap();
     assert_eq!(fetched, bob);

@@ -31,12 +31,20 @@
 //! # }
 //! ```
 //!
+//! ```compile_fail
+//! # fn f(api: users_client::Api) {
+//! // `Client::call` returns a `MutationCall` for mutations, which has no `watch`
+//! api.client().call(users_client::DeleteUsersByIdRequest { id: 1 }).watch();
+//! # }
+//! ```
+//!
 //! ```
 //! # async fn f(api: users_client::Api) {
 //! use users_client::Role;
 //! api.users.post().name("Ada").role(Role::Admin).await;
 //! api.users.id(1).get().await;
 //! api.users.get().limit(10).await;
+//! api.client().call(users_client::GetUsersByIdRequest { id: 1 }).watch();
 //! # }
 //! ```
 

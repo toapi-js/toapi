@@ -137,8 +137,8 @@ e.g. to pass requests around as values:
 
 ```rust
 let request = api.users.id(123).get().into_request(); // GetUsersByIdRequest { id: 123 }
-let user = api.client().query(request).await?;
-let user = api.client().query(GetUsersByIdRequest { id: 123 }).await?;
+let user = api.client().call(request).await?;
+let user = api.client().call(GetUsersByIdRequest { id: 123 }).await?;
 ```
 
 ## Not covered yet

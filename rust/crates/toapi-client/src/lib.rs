@@ -12,7 +12,7 @@
 //! api.users.id(1).put().name("Alice").await?;
 //!
 //! // the same, with the request structs
-//! let user = api.client().query(GetUsersByIdRequest { id: 1 }).await?;
+//! let user = api.client().call(GetUsersByIdRequest { id: 1 }).await?;
 //! ```
 //!
 //! Query responses are cached under the tags the server sent with them. A
@@ -29,7 +29,7 @@ mod stream;
 
 pub use client::{Client, ClientBuilder, MutationCall, QueryCall};
 pub use error::Error;
-pub use request::{MutationRequest, QueryRequest, Request};
+pub use request::{Kind, Mutation, Query, Request};
 pub use reqwest::Method;
 
 pub mod state;

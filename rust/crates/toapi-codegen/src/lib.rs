@@ -565,9 +565,9 @@ impl Generator {
         let response_ident = format_ident!("{}", response_name);
         let method_ident = format_ident!("{}", method.to_uppercase());
         let kind = if toapi_core::is_query_method(method) {
-            quote!(QueryRequest)
+            quote!(Query)
         } else {
-            quote!(MutationRequest)
+            quote!(Mutation)
         };
         self.operations.push(Operation {
             path: path.to_string(),
@@ -588,6 +588,7 @@ impl Generator {
                 pub struct #ident { #(#fields,)* }
 
                 impl ::toapi_client::Request for #ident {
+                    type Kind = ::toapi_client::#kind;
                     type Response = #response_ident;
                     const METHOD: ::toapi_client::Method = ::toapi_client::Method::#method_ident;
                     const TEMPLATE: &'static str = #path;
@@ -598,8 +599,6 @@ impl Generator {
 
                     #(#methods)*
                 }
-
-                impl ::toapi_client::#kind for #ident {}
             },
         )
     }
@@ -677,8 +676,8 @@ mod tests {
             "pub role: PutUsersByIdRequestBodyRole,",
             "pub enum PutUsersByIdRequestBodyRole {",
             "pub type PutUsersByIdResponseBody = ();",
-            "impl ::toapi_client::QueryRequest for GetUsersByIdRequest {}",
-            "impl ::toapi_client::MutationRequest for PutUsersByIdRequest {}",
+            "type Kind = ::toapi_client::Query;",
+            "type Kind = ::toapi_client::Mutation;",
             "pub struct Api {",
             "pub users: UsersRoute,",
             "pub fn id(&self, id: u64) -> UsersByIdRoute",

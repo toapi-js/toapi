@@ -16,7 +16,7 @@ use tokio::sync::broadcast;
 use crate::{
     Error,
     cache::Cache,
-    request::{MutationRequest, QueryRequest, Request},
+    request::{Kind, Mutation, Query, Request},
     stream::spawn_listener,
 };
 
@@ -226,9 +226,18 @@ impl Client {
         Ok(url)
     }
 
-    /// Runs a GET request. `.await` it for the response, or turn it into a
-    /// stream of responses with [`QueryCall::watch`].
-    pub fn query<R: QueryRequest>(&self, request: R) -> QueryCall<R> {
+    /// Runs a request.
+    ///
+    /// - GET requests return a [`QueryCall`]: `.await` it for the response,
+    ///   or turn it into a stream of responses with [`QueryCall::watch`].
+    /// - POST/PUT/PATCH/DELETE requests return a [`MutationCall`]: awaiting
+    ///   it resolves once the response arrived and the queries it
+    ///   invalidated were refetched.
+    pub fn call<R: Request>(&self, request: R) -> <R::Kind as Kind>::Call<R> {
+        R::Kind::call(self, request)
+    }
+
+    pub(crate) fn query_call<R: Request<Kind = Query>>(&self, request: R) -> QueryCall<R> {
         QueryCall {
             inner: self.inner.clone(),
             url: self.url(&request),
@@ -236,9 +245,7 @@ impl Client {
         }
     }
 
-    /// Runs a POST/PUT/PATCH/DELETE request. Awaiting it resolves once the
-    /// response arrived and the queries it invalidated were refetched.
-    pub fn mutate<R: MutationRequest>(&self, request: R) -> MutationCall<R> {
+    pub(crate) fn mutation_call<R: Request<Kind = Mutation>>(&self, request: R) -> MutationCall<R> {
         let prepared = self
             .url(&request)
             .and_then(|url| Ok((url, request.body()?)));
@@ -262,7 +269,7 @@ impl Client {
 
 type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send>>;
 
-/// A GET request, returned by [`Client::query`].
+/// A GET request, returned by [`Client::call`].
 #[must_use = "a query does nothing until it is awaited or watched"]
 pub struct QueryCall<R> {
     inner: Arc<Inner>,
@@ -272,7 +279,7 @@ pub struct QueryCall<R> {
 
 impl<R> QueryCall<R>
 where
-    R: QueryRequest,
+    R: Request<Kind = Query>,
     R::Response: Send + 'static,
 {
     /// A stream that yields the response now and again every time it is
@@ -306,7 +313,7 @@ where
 
 impl<R> IntoFuture for QueryCall<R>
 where
-    R: QueryRequest,
+    R: Request<Kind = Query>,
     R::Response: Send + 'static,
 {
     type Output = Result<R::Response, Error>;
@@ -338,7 +345,7 @@ impl Drop for WatchGuard {
     }
 }
 
-/// A POST/PUT/PATCH/DELETE request, returned by [`Client::mutate`].
+/// A POST/PUT/PATCH/DELETE request, returned by [`Client::call`].
 #[must_use = "a mutation does nothing until it is awaited"]
 pub struct MutationCall<R> {
     inner: Arc<Inner>,
@@ -348,7 +355,7 @@ pub struct MutationCall<R> {
 
 impl<R> IntoFuture for MutationCall<R>
 where
-    R: MutationRequest,
+    R: Request<Kind = Mutation>,
     R::Response: Send + 'static,
 {
     type Output = Result<R::Response, Error>;

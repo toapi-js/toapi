@@ -426,13 +426,10 @@ impl Generator {
         });
 
         let bounds = quote!(#(#generics: ::toapi_client::state::IsSet),*);
-        let (run, call_ty) = if toapi_core::is_query_method(&operation.method) {
-            (quote!(query), quote!(::toapi_client::QueryCall<#request>))
+        let call_ty = if toapi_core::is_query_method(&operation.method) {
+            quote!(::toapi_client::QueryCall<#request>)
         } else {
-            (
-                quote!(mutate),
-                quote!(::toapi_client::MutationCall<#request>),
-            )
+            quote!(::toapi_client::MutationCall<#request>)
         };
         let watch = toapi_core::is_query_method(&operation.method).then(|| {
             quote! {
@@ -444,7 +441,7 @@ impl Generator {
                     Item = Result<<#request as ::toapi_client::Request>::Response, ::toapi_client::Error>,
                 > + Send + 'static {
                     let client = self.__client.clone();
-                    client.query(self.into_request()).watch()
+                    client.call(self.into_request()).watch()
                 }
             }
         });
@@ -504,7 +501,7 @@ impl Generator {
 
                     fn into_future(self) -> Self::IntoFuture {
                         let client = self.__client.clone();
-                        ::core::future::IntoFuture::into_future(client.#run(self.into_request()))
+                        ::core::future::IntoFuture::into_future(client.call(self.into_request()))
                     }
                 }
             },
