@@ -22,7 +22,7 @@ struct Entry {
     id: u64,
     result: SharedResult,
     /// Empty until the response arrived.
-    tags: Vec<String>,
+    tags: HashSet<String>,
 }
 
 /// Requests by URL, stored as soon as they are made (like the TypeScript
@@ -49,7 +49,7 @@ impl Cache {
             Entry {
                 id,
                 result,
-                tags: Vec::new(),
+                tags: HashSet::new(),
             },
         );
     }
@@ -57,7 +57,7 @@ impl Cache {
     /// Records the tags of a response, if its entry is still current.
     pub fn set_tags(&mut self, url: &str, id: u64, tags: Vec<String>) {
         if let Some(entry) = self.entries.get_mut(url).filter(|e| e.id == id) {
-            entry.tags = tags;
+            entry.tags = tags.into_iter().collect();
         }
     }
 
@@ -73,11 +73,11 @@ impl Cache {
 
     /// Removes every entry carrying one of `tags` and returns their URLs.
     pub fn invalidate_tags(&mut self, tags: &[String]) -> HashSet<String> {
-        let tags: HashSet<&str> = tags.iter().map(String::as_str).collect();
+        let tags: HashSet<String> = tags.iter().cloned().collect();
         let urls: HashSet<String> = self
             .entries
             .iter()
-            .filter(|(_, entry)| entry.tags.iter().any(|tag| tags.contains(tag.as_str())))
+            .filter(|(_, entry)| !entry.tags.is_disjoint(&tags))
             .map(|(url, _)| url.clone())
             .collect();
         for url in &urls {
