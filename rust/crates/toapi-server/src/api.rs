@@ -157,8 +157,17 @@ impl<S: Clone + Send + Sync + 'static> Api<S> {
     }
 
     /// Replaces the default [`PubSub`] cache, e.g. with one backed by Redis.
-    pub fn cache(mut self, cache: impl Cache) -> Self {
-        self.cache = Arc::new(cache);
+    /// Keep a clone of the `Arc` to invalidate tags outside of requests,
+    /// e.g. from a background job:
+    ///
+    /// ```ignore
+    /// let cache = Arc::new(PubSub::new());
+    /// let api = Api::new("Users", "1.0.0").cache(cache.clone());
+    /// // later
+    /// cache.invalidate(vec!["users".into()], None);
+    /// ```
+    pub fn cache<C: Cache>(mut self, cache: Arc<C>) -> Self {
+        self.cache = cache;
         self
     }
 
@@ -195,12 +204,6 @@ impl<S: Clone + Send + Sync + 'static> Api<S> {
             Box::pin(async move { Arc::new(fut.await) as TagFilter })
         }));
         self
-    }
-
-    /// The [`Cache`], e.g. to invalidate tags from a background job. Keep
-    /// the handle before turning the API into a router.
-    pub fn cache_handle(&self) -> Arc<dyn Cache> {
-        self.cache.clone()
     }
 
     /// Invalidates tags outside of a request, like the TypeScript server's

@@ -73,8 +73,8 @@ let router = axum::Router::new()
   invalidation streams of this process; `.cache(..)` replaces it.
 - Tags can be invalidated imperatively: in a handler through the
   `RequestCache` extractor (`cache.invalidate(["users"])`, attributed to the
-  calling client like `req.invalidate`), elsewhere through
-  `api.invalidate(..)` or `api.cache_handle()`.
+  calling client like `req.invalidate`), elsewhere through the `Cache` you
+  passed to `.cache(Arc::new(..))` and kept a clone of.
 - `.hash_secret(..)`, `.throttle(..)`, `.keepalive(..)` and
   `.invalidation_filter(..)` configure the invalidation stream.
 
