@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use futures::StreamExt;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
-use toapi_client::{Client, Error, delete, get, post, put};
+use toapi_client::{Client, Error};
 use users_client::*;
 
 async fn start_server() -> String {
@@ -20,7 +20,7 @@ async fn start_server() -> String {
     format!("http://{addr}/api")
 }
 
-fn client(base_url: &str, user: &str) -> Client {
+fn api(base_url: &str, user: &str) -> Api {
     let mut headers = HeaderMap::new();
     headers.insert(
         AUTHORIZATION,
@@ -31,7 +31,7 @@ fn client(base_url: &str, user: &str) -> Client {
         .default_headers(headers)
         .build()
         .unwrap();
-    Client::builder(base_url).http_client(http).build()
+    Api::from_client(Client::builder(base_url).http_client(http).build())
 }
 
 async fn next<T>(stream: &mut (impl futures::Stream<Item = T> + Unpin)) -> T {
@@ -44,40 +44,40 @@ async fn next<T>(stream: &mut (impl futures::Stream<Item = T> + Unpin)) -> T {
 #[tokio::test]
 async fn queries_and_mutations() {
     let base_url = start_server().await;
-    let client = client(&base_url, "alice");
+    let api = api(&base_url, "alice");
 
-    let alice = client
-        .mutate(post!("/users", { name: "Alice", role: Role::Admin }))
+    let alice = api
+        .users
+        .post()
+        .name("Alice")
+        .role(Role::Admin)
         .await
         .unwrap();
     assert_eq!(alice.name, "Alice");
-
-    // the macro and the struct build the same request
     let id = alice.id;
-    assert_eq!(get!("/users/{id}"), GetUsersById { id });
-    assert_eq!(get!("/users/{id}", 1), GetUsersById { id: 1 });
 
-    let fetched = client.query(get!("/users/{id}", id)).await.unwrap();
+    let fetched = api.users.id(id).get().await.unwrap();
     assert_eq!(fetched, alice);
 
-    let renamed = client
-        .mutate(put!("/users/{id}", id = alice.id, { name: "Alicia", role: Role::Member }))
+    let renamed = api
+        .users
+        .id(id)
+        .put()
+        .name("Alicia")
+        .role(Role::Member)
         .await
         .unwrap();
     assert_eq!(renamed.name, "Alicia");
 
     // the PUT invalidated `user:{id}`, so this isn't served from the cache
-    let fetched = client.query(GetUsersById { id }).await.unwrap();
+    let fetched = api.users.id(id).get().await.unwrap();
     assert_eq!(fetched.name, "Alicia");
 
-    let users = client
-        .query(get!("/users?limit={n}", n = Some(10)))
-        .await
-        .unwrap();
+    let users = api.users.get().limit(10).await.unwrap();
     assert_eq!(users, vec![renamed]);
 
-    client.mutate(delete!("/users/{id}", id)).await.unwrap();
-    let err = client.query(get!("/users/{id}", id)).await.unwrap_err();
+    api.users.id(id).delete().await.unwrap();
+    let err = api.users.id(id).get().await.unwrap_err();
     assert!(
         matches!(err, Error::Status { status, .. } if status == 404),
         "{err}"
@@ -85,11 +85,69 @@ async fn queries_and_mutations() {
 }
 
 #[tokio::test]
+async fn calls_build_request_structs() {
+    let api = Api::from_client(
+        Client::builder("http://localhost")
+            .invalidation_stream(false)
+            .build(),
+    );
+
+    assert_eq!(
+        api.users.id(7).get().into_request(),
+        GetUsersByIdRequest { id: 7 }
+    );
+    assert_eq!(
+        api.users.get().into_request(),
+        GetUsersRequest {
+            query: GetUsersQuery { limit: None }
+        }
+    );
+    assert_eq!(
+        api.users
+            .id(7)
+            .put()
+            .role(Role::Admin)
+            .name("Ada")
+            .into_request(),
+        PutUsersByIdRequest {
+            id: 7,
+            body: NewUser {
+                name: "Ada".into(),
+                role: Role::Admin
+            }
+        }
+    );
+}
+
+#[tokio::test]
+async fn request_structs_run_on_the_client() {
+    let base_url = start_server().await;
+    let api = api(&base_url, "alice");
+
+    let request = PostUsersRequest {
+        body: NewUser {
+            name: "Bob".into(),
+            role: Role::Member,
+        },
+    };
+    let bob = api.client().mutate(request).await.unwrap();
+    let fetched = api
+        .client()
+        .query(GetUsersByIdRequest { id: bob.id })
+        .await
+        .unwrap();
+    assert_eq!(fetched, bob);
+}
+
+#[tokio::test]
 async fn unauthorized_mutation() {
     let base_url = start_server().await;
-    let client = Client::new(&base_url);
-    let err = client
-        .mutate(post!("/users", { name: "Mallory", role: Role::Admin }))
+    let api = Api::new(&base_url);
+    let err = api
+        .users
+        .post()
+        .name("Mallory")
+        .role(Role::Admin)
         .await
         .unwrap_err();
     assert!(
@@ -101,13 +159,16 @@ async fn unauthorized_mutation() {
 #[tokio::test]
 async fn watch_follows_own_mutations() {
     let base_url = start_server().await;
-    let client = client(&base_url, "alice");
+    let api = api(&base_url, "alice");
 
-    let mut users = Box::pin(client.query(get!("/users?limit", limit = None)).watch());
+    let mut users = Box::pin(api.users.get().watch());
     assert_eq!(next(&mut users).await.unwrap(), vec![]);
 
-    let bob = client
-        .mutate(post!("/users", { name: "Bob", role: Role::Member }))
+    let bob = api
+        .users
+        .post()
+        .name("Bob")
+        .role(Role::Member)
         .await
         .unwrap();
     // the mutation resolves after the watched query was refetched
@@ -117,22 +178,29 @@ async fn watch_follows_own_mutations() {
 #[tokio::test]
 async fn watch_follows_other_clients_through_the_invalidation_stream() {
     let base_url = start_server().await;
-    let alice = client(&base_url, "alice");
-    let bob = client(&base_url, "bob");
+    let alice = api(&base_url, "alice");
+    let bob = api(&base_url, "bob");
 
     let carol = alice
-        .mutate(post!("/users", { name: "Carol", role: Role::Member }))
+        .users
+        .post()
+        .name("Carol")
+        .role(Role::Member)
         .await
         .unwrap();
     let id = carol.id;
 
-    let mut watched = Box::pin(bob.query(get!("/users/{id}")).watch());
+    let mut watched = Box::pin(bob.users.id(id).get().watch());
     assert_eq!(next(&mut watched).await.unwrap().name, "Carol");
     // give bob's invalidation stream time to connect
     tokio::time::sleep(Duration::from_millis(200)).await;
 
     alice
-        .mutate(put!("/users/{id}", id, { name: "Caroline", role: Role::Admin }))
+        .users
+        .id(id)
+        .put()
+        .name("Caroline")
+        .role(Role::Admin)
         .await
         .unwrap();
     let mut user = next(&mut watched).await.unwrap();

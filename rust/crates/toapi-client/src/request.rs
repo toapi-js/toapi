@@ -39,33 +39,6 @@ pub trait QueryRequest: Request {}
 )]
 pub trait MutationRequest: Request {}
 
-/// Conversion of the values passed to the request macros into field types.
-/// Besides the identity it turns `&str` into `String`, so
-/// `get!("/users/{name}", "alice")` works for a `String` field.
-#[diagnostic::on_unimplemented(
-    message = "a `{Self}` can't be used for a field of type `{T}`",
-    label = "expected `{T}`"
-)]
-pub trait IntoField<T> {
-    fn into_field(self) -> T;
-}
-
-impl<T> IntoField<T> for T {
-    fn into_field(self) -> T {
-        self
-    }
-}
-
-impl IntoField<String> for &str {
-    fn into_field(self) -> String {
-        self.to_string()
-    }
-}
-
-pub fn into_field<T>(value: impl IntoField<T>) -> T {
-    value.into_field()
-}
-
 const SEGMENT: &percent_encoding::AsciiSet = &percent_encoding::NON_ALPHANUMERIC
     .remove(b'-')
     .remove(b'_')

@@ -11,7 +11,7 @@ users-server (axum handlers + toapi-server)
 openapi.json  (committed; a test fails when it is out of date)
    │  toapi-codegen in build.rs
    ▼
-users-client  (request types + toapi-client runtime + get!/post!/… macros)
+users-client  (api.users.id(1).get() path tree + request types + toapi-client runtime)
 ```
 
 The wire protocol (`X-TAPI-Tags`, `X-TAPI-Expires-At`, `/__tapi/invalidations`,
@@ -24,9 +24,8 @@ same as in the TypeScript packages.
 |---|---|
 | `toapi-core` | Wire constants and the route naming scheme shared by everything else |
 | `toapi-server` | `Api` builder on axum, `Cached`/`Invalidates` responses, invalidation stream, OpenAPI |
-| `toapi-codegen` | OpenAPI → request types and `Request` impls, for build scripts |
+| `toapi-codegen` | OpenAPI → path tree, call builders and request types, for build scripts |
 | `toapi-client` | `Client` with tag cache, `watch()` streams and the invalidation stream listener |
-| `toapi-macros` | `get!`, `post!`, `put!`, `patch!`, `delete!` (re-exported by `toapi-client`) |
 
 ## Server: define the API
 
@@ -95,54 +94,52 @@ fn main() {
 include!(concat!(env!("OUT_DIR"), "/toapi_client.rs"));
 ```
 
-Every route and method becomes a set of types named after it:
-
-| | `GET /users/{id}` |
-|---|---|
-| Request | `GetUsersById { id, query?, body? }` |
-| Query parameters | `GetUsersByIdQuery` |
-| Request body | `PutUsersByIdRequestBody` |
-| Response body | `GetUsersByIdResponseBody` |
+The generated code is a path tree rooted at `Api`. Static path segments are
+fields, parameters are methods, and HTTP methods return call builders that
+take query parameters and body fields through setters:
 
 ```rust
-use toapi_client::{Client, get, post, put};
 use users_client::*;
 
-let client = Client::new("http://localhost:3000/api");
+let api = Api::new("http://localhost:3000/api");
 
-let user = client.query(GetUsersById { id: 1 }).await?;
-let user = client.query(get!("/users/{id}", 1)).await?;
-let users = client.query(get!("/users?limit", limit = Some(10))).await?;
+let user  = api.users.id(123).get().await?;                 // GET /users/{id}
+let users = api.users.get().limit(10).await?;               // GET /users?limit=10
+let user  = api.users.id(123).put().name("Alicia").role(Role::Member).await?;
+api.users.id(123).delete().await?;
 
-let mut live = client.query(get!("/users/{id}", id)).watch(); // Stream<Item = Result<User, Error>>
-
-client.mutate(put!("/users/{id}", id, { name: "Alicia", role: Role::Member })).await?;
+let mut live = api.users.id(123).get().watch();             // Stream<Item = Result<User, Error>>
 ```
 
-- `query` only takes GET requests, `mutate` only the others.
+- Parameters are typed: `.id("123")` doesn't compile when `{id}` is a `u64`.
+- Optional query parameters and body fields can be left out. Required ones are
+  tracked in the builder's type: a call missing one can't be awaited, and the
+  error names it (`PostUsersCall<Set, Unset<required::role>>` is not a future).
+- Only GET calls have `.watch()`.
 - Awaiting a mutation invalidates the tags it returned and refetches the
   watched queries before it resolves. Mutations by other clients arrive over
   the invalidation stream and update `watch()` streams the same way.
 - When the invalidation stream reconnects, the whole cache is dropped.
 
-### Macros
+### Generated names
 
-The macros derive the type names from the method and the path through
-`toapi-core`, the same function the codegen uses, and expand to a struct
-literal. They don't read the OpenAPI document; the generated types must be in
-scope.
+| `GET /users/{id}` | |
+|---|---|
+| `GetUsersByIdRequest` | The whole request: path parameters, `query` and `body` |
+| `GetUsersByIdQuery` | Query parameters |
+| `PutUsersByIdRequestBody` | Request body |
+| `GetUsersByIdResponseBody` | Response body |
+| `GetUsersByIdCall` | Call builder, returned by `api.users.id(..).get()` |
+| `UsersByIdRoute` | Tree node, returned by `api.users.id(..)` |
+
+The request structs implement `toapi_client::Request` and can be run directly,
+e.g. to pass requests around as values:
 
 ```rust
-get!("/users/{id}", 123)                           // GetUsersById { id: 123 }
-get!("/users/{id}", id = 123)
-get!("/users/{id}")                                // captures a local `id`
-get!("/users/{id}?a={x}&b", 123, x = "foo", b = 2) // .. query: GetUsersByIdQuery { a: "foo".into(), b: 2 }
-post!("/users", { name: "Alice", role: Role::Admin })
+let request = api.users.id(123).get().into_request(); // GetUsersByIdRequest { id: 123 }
+let user = api.client().query(request).await?;
+let user = api.client().query(GetUsersByIdRequest { id: 123 }).await?;
 ```
-
-All path and query parameters must be passed (optional ones as `None`). Wrong
-routes, missing or unknown parameters and type mismatches are compile errors
-pointing at the macro call.
 
 ## Not covered yet
 

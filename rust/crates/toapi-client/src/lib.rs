@@ -1,18 +1,18 @@
 //! Typed client for a Toapi API.
 //!
-//! The request types are generated from the API's OpenAPI document by
-//! `toapi-codegen` (one struct per route and method, e.g. `GetUsersById`).
-//! The client runs them:
+//! `toapi-codegen` generates the API specific code from the OpenAPI
+//! document: an `Api` path tree with call builders, plus one request struct
+//! per route and method (e.g. `GetUsersByIdRequest`). This crate runs them:
 //!
 //! ```ignore
-//! use toapi_client::{Client, get, put};
-//! use my_api_client::*;
+//! let api = my_api_client::Api::new("http://localhost:3000/api");
 //!
-//! let client = Client::new("http://localhost:3000/api");
+//! let user = api.users.id(1).get().await?;
+//! let mut live = api.users.id(1).get().watch();
+//! api.users.id(1).put().name("Alice").await?;
 //!
-//! let user = client.query(get!("/users/{id}", 1)).await?;
-//! let mut live = client.query(GetUsersById { id: 1 }).watch();
-//! client.mutate(put!("/users/{id}", id = 1, { name: "Alice".into() })).await?;
+//! // the same, with the request structs
+//! let user = api.client().query(GetUsersByIdRequest { id: 1 }).await?;
 //! ```
 //!
 //! Query responses are cached under the tags the server sent with them. A
@@ -31,12 +31,14 @@ pub use client::{Client, ClientBuilder, MutationCall, QueryCall};
 pub use error::Error;
 pub use request::{MutationRequest, QueryRequest, Request};
 pub use reqwest::Method;
-pub use toapi_macros::{delete, get, patch, post, put};
+
+pub mod state;
 
 #[doc(hidden)]
 pub mod __private {
+    pub use futures::Stream;
     pub use serde;
     pub use serde_json;
 
-    pub use crate::request::{IntoField, encode_path_segment, into_field, json_body, query_string};
+    pub use crate::request::{encode_path_segment, json_body, query_string};
 }

@@ -2,15 +2,30 @@
 //!
 //! For every route and method, e.g. `GET /users/{id}`, it emits
 //!
-//! - `GetUsersById`: the request, with one field per path parameter plus
-//!   `query` and `body` fields when the route takes them
+//! - `GetUsersByIdRequest`: the whole request, with one field per path
+//!   parameter plus `query` and `body` fields when the route takes them; it
+//!   implements `toapi_client::Request`
 //! - `GetUsersByIdQuery`: the query parameters
 //! - `PutUsersByIdRequestBody`: the request body
 //! - `GetUsersByIdResponseBody`: the response body
+//! - `GetUsersByIdCall`: a builder for the request (see below)
 //!
-//! plus a type per `components/schemas` entry, and implements
-//! `toapi_client::Request` for each request. The names come from
-//! `toapi_core::type_name`, which the client macros use as well.
+//! plus a type per `components/schemas` entry. The names come from
+//! `toapi_core`.
+//!
+//! On top of that it emits a path tree rooted at `Api`: static segments are
+//! fields, parameters are methods and HTTP methods return the call builders,
+//! which take query parameters and body fields through setters:
+//!
+//! ```ignore
+//! let api = Api::new("http://localhost:3000/api");
+//! let user = api.users.id(123).get().await?;
+//! let users = api.users.get().limit(10).await?;
+//! let user = api.users.id(123).put().name("Alicia").role(Role::Member).await?;
+//! ```
+//!
+//! Required query parameters and body fields are tracked in the builder's
+//! type, so a call missing one doesn't compile.
 //!
 //! Use it from a build script:
 //!
@@ -38,6 +53,10 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use serde_json::{Map, Value, json};
 use toapi_core::Segment;
+
+mod tree;
+
+use tree::{Body, Field, Operation};
 
 #[derive(Debug)]
 pub struct Error(String);
@@ -105,6 +124,8 @@ pub fn generate(spec: &Value) -> Result<String, Error> {
         }
     }
 
+    generator.tree()?;
+
     let items = generator.items;
     let file: syn::File = syn::parse2(quote!(#(#items)*))
         .map_err(|e| error(format!("generated invalid code: {e}")))?;
@@ -119,11 +140,14 @@ struct Ty {
     tokens: TokenStream,
     /// Already an `Option<..>`, so optional fields don't wrap it again.
     optional: bool,
+    /// The type without the `Option<..>`.
+    inner: TokenStream,
 }
 
 impl Ty {
     fn plain(tokens: TokenStream) -> Self {
         Ty {
+            inner: tokens.clone(),
             tokens,
             optional: false,
         }
@@ -135,6 +159,9 @@ struct Generator {
     items: Vec<TokenStream>,
     /// Defined type names and where they came from, to report collisions.
     defined: HashMap<String, String>,
+    /// The fields of every generated struct, for the call builders.
+    structs: HashMap<String, Vec<Field>>,
+    operations: Vec<Operation>,
 }
 
 fn serde_derives() -> TokenStream {
@@ -214,6 +241,7 @@ impl Generator {
             .map(|r| r.iter().filter_map(Value::as_str).collect())
             .unwrap_or_default();
         let mut fields = Vec::new();
+        let mut field_infos = Vec::new();
         if let Some(properties) = schema.get("properties").and_then(Value::as_object) {
             for (property, property_schema) in properties {
                 let hint = format!("{name}{}", toapi_core::pascal_case(property));
@@ -222,6 +250,11 @@ impl Generator {
                 let rename = (ident.to_string().trim_start_matches("r#") != property)
                     .then(|| quote!(#[serde(rename = #property)]));
                 let optional = !required.contains(&property.as_str()) || ty.optional;
+                field_infos.push(Field {
+                    ident: ident.clone(),
+                    inner: ty.inner.clone(),
+                    optional,
+                });
                 let tokens = ty.tokens;
                 let (ty, attrs) = match (optional, ty.optional) {
                     (false, _) => (tokens, quote!()),
@@ -241,6 +274,7 @@ impl Generator {
         let ident = format_ident!("{}", name);
         let derives = serde_derives();
         let doc = doc(schema);
+        self.structs.insert(name.to_string(), field_infos);
         self.define(
             name,
             origin,
@@ -421,6 +455,9 @@ impl Generator {
         }
 
         let mut fields = Vec::new();
+        let mut operation_path_params = Vec::new();
+        let mut operation_query = None;
+        let mut operation_body = None;
         let mut format_string = String::new();
         let mut format_args = Vec::new();
         for segment in &segments {
@@ -440,6 +477,7 @@ impl Generator {
                         .tokens;
                     let ident = field_ident(param);
                     fields.push(quote!(pub #ident: #ty));
+                    operation_path_params.push((param.clone(), ident.clone(), ty.clone()));
                     format_string.push_str("{}");
                     format_args
                         .push(quote!(::toapi_client::__private::encode_path_segment(&self.#ident)));
@@ -467,6 +505,7 @@ impl Generator {
             });
             self.object(&query_name, &schema, &format!("{origin} query"))?;
             let ident = format_ident!("{}", query_name);
+            operation_query = Some((ident.clone(), self.structs[&query_name].clone()));
             fields.push(quote!(pub query: #ident));
             methods.push(quote! {
                 fn query(&self) -> Result<Option<String>, ::toapi_client::Error> {
@@ -479,6 +518,21 @@ impl Generator {
             let body_name = toapi_core::request_body_type_name(&name);
             self.named_type(&body_name, schema, &format!("{origin} request body"))?;
             let ident = format_ident!("{}", body_name);
+            // the fields of an inline object, or of the component it references
+            let struct_name = match schema.get("$ref").and_then(Value::as_str) {
+                Some(reference) => reference
+                    .strip_prefix("#/components/schemas/")
+                    .map(toapi_core::pascal_case)
+                    .unwrap_or_default(),
+                None => body_name.clone(),
+            };
+            operation_body = Some(match self.structs.get(&struct_name) {
+                Some(fields) => Body::Fields {
+                    ty: ident.clone(),
+                    fields: fields.clone(),
+                },
+                None => Body::Whole { ty: ident.clone() },
+            });
             fields.push(quote!(pub body: #ident));
             methods.push(quote! {
                 fn body(&self) -> Result<Option<Vec<u8>>, ::toapi_client::Error> {
@@ -506,7 +560,8 @@ impl Generator {
         } else {
             quote!(format!(#format_string, #(#format_args),*))
         };
-        let ident = format_ident!("{}", name);
+        let request_name = toapi_core::request_type_name(&name);
+        let ident = format_ident!("{}", request_name);
         let response_ident = format_ident!("{}", response_name);
         let method_ident = format_ident!("{}", method.to_uppercase());
         let kind = if toapi_core::is_query_method(method) {
@@ -514,9 +569,18 @@ impl Generator {
         } else {
             quote!(MutationRequest)
         };
+        self.operations.push(Operation {
+            path: path.to_string(),
+            method: method.to_string(),
+            name: name.clone(),
+            path_params: operation_path_params,
+            query: operation_query,
+            body: operation_body,
+        });
+
         let doc = format!(" `{} {path}`", method.to_uppercase());
         self.define(
-            &name,
+            &request_name,
             &origin,
             quote! {
                 #[doc = #doc]
@@ -549,6 +613,7 @@ fn optional(inner: Ty) -> Ty {
     Ty {
         tokens: quote!(Option<#tokens>),
         optional: true,
+        inner: tokens,
     }
 }
 
@@ -602,7 +667,7 @@ mod tests {
         let code = generate(&spec).unwrap();
         for expected in [
             "pub struct User {",
-            "pub struct GetUsersById {",
+            "pub struct GetUsersByIdRequest {",
             "pub id: u64,",
             "pub query: GetUsersByIdQuery,",
             "pub struct GetUsersByIdQuery {",
@@ -612,11 +677,30 @@ mod tests {
             "pub role: PutUsersByIdRequestBodyRole,",
             "pub enum PutUsersByIdRequestBodyRole {",
             "pub type PutUsersByIdResponseBody = ();",
-            "impl ::toapi_client::QueryRequest for GetUsersById {}",
-            "impl ::toapi_client::MutationRequest for PutUsersById {}",
+            "impl ::toapi_client::QueryRequest for GetUsersByIdRequest {}",
+            "impl ::toapi_client::MutationRequest for PutUsersByIdRequest {}",
+            "pub struct Api {",
+            "pub users: UsersRoute,",
+            "pub fn id(&self, id: u64) -> UsersByIdRoute",
+            "pub fn get(&self) -> GetUsersByIdCall",
+            "pub fn include_posts(mut self, value: bool) -> Self",
+            "pub fn name(",
+            "pub struct name;",
         ] {
             assert!(code.contains(expected), "missing `{expected}` in\n{code}");
         }
+    }
+
+    #[test]
+    fn reports_conflicting_parameter_names() {
+        let spec = json!({
+            "paths": {
+                "/users/{id}": { "get": { "responses": {} } },
+                "/users/{user_id}/posts": { "get": { "responses": {} } }
+            }
+        });
+        let err = generate(&spec).unwrap_err().to_string();
+        assert!(err.contains("different parameter names"), "{err}");
     }
 
     #[test]

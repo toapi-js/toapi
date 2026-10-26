@@ -1326,7 +1326,6 @@ dependencies = [
  "serde_json",
  "serde_urlencoded",
  "toapi-core",
- "toapi-macros",
  "tokio",
 ]
 
@@ -1345,16 +1344,6 @@ dependencies = [
 [[package]]
 name = "toapi-core"
 version = "0.1.0"
-
-[[package]]
-name = "toapi-macros"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.119",
- "toapi-core",
-]
 
 [[package]]
 name = "toapi-server"

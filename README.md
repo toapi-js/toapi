@@ -34,7 +34,7 @@ Run Prisma migrations against throwaway SQLite/PGlite databases in tests.
 ## Rust
 
 ### [rust/](./rust)
-Toapi for Rust: define the API on an axum server, generate OpenAPI from it, generate a typed client with `get!`/`post!` request macros, and keep caches fresh with tag-based invalidation over the same wire protocol.
+Toapi for Rust: define the API on an axum server, generate OpenAPI from it, generate a typed client (`api.users.id(1).get().await`), and keep caches fresh with tag-based invalidation over the same wire protocol.
 
 ## Examples
 

@@ -129,7 +129,7 @@ impl<S: Clone + Send + Sync + 'static> Api<S> {
     }
 
     /// Adds a route. `path` uses axum's syntax (`/users/{id}`, `/files/{*rest}`),
-    /// which is also the OpenAPI path and the template the client macros take.
+    /// which is also the path in the OpenAPI document.
     ///
     /// # Panics
     ///

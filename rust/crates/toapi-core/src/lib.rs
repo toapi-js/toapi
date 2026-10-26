@@ -2,10 +2,8 @@
 //!
 //! - the wire protocol constants (compatible with the TypeScript packages)
 //! - parsing of route templates such as `/users/{id}`
-//! - the deterministic naming scheme that maps `GET /users/{id}` to `GetUsersById`
-//!
-//! The codegen and the client macros both derive names through this crate, so
-//! the types the codegen emits are always the ones the macros refer to.
+//! - the deterministic naming scheme that maps `GET /users/{id}` to
+//!   `GetUsersByIdRequest` and friends
 
 pub const TAGS_HEADER: &str = "X-TAPI-Tags";
 pub const EXPIRES_AT_HEADER: &str = "X-TAPI-Expires-At";
@@ -69,16 +67,25 @@ pub fn path_params(path: &str) -> Result<Vec<String>, String> {
         .collect())
 }
 
-/// The request type name for a route: `GET /users/{id}` becomes `GetUsersById`.
+/// The base name of an operation: `GET /users/{id}` becomes `GetUsersById`.
+/// The generated types append a suffix to it (see [`request_type_name`] and
+/// friends).
 ///
 /// - the method is PascalCased (`GET` → `Get`)
+/// - the path is named by [`path_type_name`]
+pub fn type_name(method: &str, path: &str) -> Result<String, String> {
+    Ok(pascal_case(&method.to_ascii_lowercase()) + &path_type_name(path)?)
+}
+
+/// The name of a path: `/users/{id}` becomes `UsersById`.
+///
 /// - static segments are PascalCased, splitting words on non-alphanumerics
 ///   (`/user-groups` → `UserGroups`)
 /// - parameters become `By` + their PascalCased name (`{id}` → `ById`,
 ///   `{*rest}` → `ByRest`)
 /// - the root route `/` becomes `Root`
-pub fn type_name(method: &str, path: &str) -> Result<String, String> {
-    let mut name = pascal_case(&method.to_ascii_lowercase());
+pub fn path_type_name(path: &str) -> Result<String, String> {
+    let mut name = String::new();
     let segments = parse_path(path)?;
     if segments.is_empty() {
         name.push_str("Root");
@@ -93,6 +100,25 @@ pub fn type_name(method: &str, path: &str) -> Result<String, String> {
         }
     }
     Ok(name)
+}
+
+/// Name of the struct holding a whole request (path parameters, query and body).
+pub fn request_type_name(type_name: &str) -> String {
+    format!("{type_name}Request")
+}
+
+/// Name of the call builder of an operation.
+pub fn call_type_name(type_name: &str) -> String {
+    format!("{type_name}Call")
+}
+
+/// Name of the path tree node for a path: `/users/{id}` → `UsersByIdRoute`.
+/// The root of the tree is always `Api`.
+pub fn route_type_name(path: &str) -> Result<String, String> {
+    if parse_path(path)?.is_empty() {
+        return Ok("Api".into());
+    }
+    Ok(path_type_name(path)? + "Route")
 }
 
 /// Name of the query parameter struct of a request type.
@@ -255,10 +281,19 @@ mod tests {
     #[test]
     fn derived_names() {
         let name = type_name("GET", "/path/{id}").unwrap();
+        assert_eq!(request_type_name(&name), "GetPathByIdRequest");
+        assert_eq!(call_type_name(&name), "GetPathByIdCall");
         assert_eq!(query_type_name(&name), "GetPathByIdQuery");
         assert_eq!(response_body_type_name(&name), "GetPathByIdResponseBody");
         let name = type_name("PUT", "/path/{id}").unwrap();
         assert_eq!(request_body_type_name(&name), "PutPathByIdRequestBody");
+    }
+
+    #[test]
+    fn route_names() {
+        assert_eq!(route_type_name("/").unwrap(), "Api");
+        assert_eq!(route_type_name("/users").unwrap(), "UsersRoute");
+        assert_eq!(route_type_name("/users/{id}").unwrap(), "UsersByIdRoute");
     }
 
     #[test]

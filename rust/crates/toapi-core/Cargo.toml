@@ -1,6 +1,6 @@
 [package]
 name = "toapi-core"
-description = "Wire constants and route naming shared by the Toapi server, client, codegen and macros"
+description = "Wire constants and route naming shared by the Toapi server, client and codegen"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
