@@ -388,6 +388,66 @@ impl Generator {
             }
         }
 
+        // `.query(..)` and `.body(..)` take a whole query or body struct and
+        // set all of its fields at once
+        let mut whole_setter = |method: &str, ty: &Ident, members: Vec<(&Setter, &Ident)>| {
+            let method = format_ident!("{}", method);
+            let fields: Vec<&Ident> = members.iter().map(|(_, field)| *field).collect();
+            let bindings: Vec<Ident> = members
+                .iter()
+                .map(|(setter, _)| format_ident!("__{}", setter.store))
+                .collect();
+            let inits = members.iter().zip(&bindings).map(|((setter, _), binding)| {
+                let store = &setter.store;
+                if setter.required {
+                    quote!(#store: Some(#binding))
+                } else {
+                    quote!(#store: #binding)
+                }
+            });
+            let others = stores
+                .iter()
+                .filter(|store| !members.iter().any(|(setter, _)| setter.store == ***store));
+            let after = required.iter().zip(&generics).map(|(setter, g)| {
+                if members
+                    .iter()
+                    .any(|(member, _)| member.store == setter.store)
+                {
+                    quote!(::toapi_client::state::Set)
+                } else {
+                    quote!(#g)
+                }
+            });
+            setter_impls.push(quote! {
+                impl<#(#generics),*> #call<#(#generics),*> {
+                    pub fn #method(self, value: #ty) -> #call<#(#after),*> {
+                        let #ty { #(#fields: #bindings),* } = value;
+                        #call {
+                            __client: self.__client,
+                            #(#path_stores: self.#path_stores,)*
+                            #(#others: self.#others,)*
+                            #(#inits,)*
+                            __state: ::core::marker::PhantomData,
+                        }
+                    }
+                }
+            });
+        };
+        if let Some((ty, _)) = &operation.query {
+            let members = setters
+                .iter()
+                .filter_map(|s| s.query_field.as_ref().map(|field| (s, field)))
+                .collect();
+            whole_setter("query", ty, members);
+        }
+        if let Some(Body::Fields { ty, .. }) = &operation.body {
+            let members = setters
+                .iter()
+                .filter_map(|s| s.body_field.as_ref().map(|field| (s, field)))
+                .collect();
+            whole_setter("body", ty, members);
+        }
+
         // building the request struct; required stores are `Some` per the typestate
         let value = |setter: &Setter| {
             let store = &setter.store;
@@ -526,6 +586,13 @@ struct Setter {
 fn setters(operation: &Operation) -> Vec<Setter> {
     let mut setters = Vec::new();
     let mut taken: BTreeSet<String> = CALL_METHODS.iter().map(|m| m.to_string()).collect();
+    // the whole-struct setters, see `Generator::call`
+    if operation.query.is_some() {
+        taken.insert("query".into());
+    }
+    if let Some(Body::Fields { .. }) = &operation.body {
+        taken.insert("body".into());
+    }
     if let Some((_, fields)) = &operation.query {
         for field in fields {
             let plain = field.ident.to_string();

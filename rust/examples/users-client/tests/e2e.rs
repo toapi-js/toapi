@@ -120,6 +120,50 @@ async fn calls_build_request_structs() {
 }
 
 #[tokio::test]
+async fn whole_query_and_body() {
+    let base_url = start_server().await;
+    let api = api(&base_url, "alice");
+
+    let new_user = NewUser {
+        name: "Dora".into(),
+        role: Role::Member,
+    };
+    let dora = api.users.post().body(new_user.clone()).await.unwrap();
+    assert_eq!(dora.name, "Dora");
+
+    let users = api
+        .users
+        .get()
+        .query(GetUsersQuery { limit: Some(1) })
+        .await
+        .unwrap();
+    assert_eq!(users, vec![dora.clone()]);
+
+    // setters still work after a whole struct, and the last one wins
+    assert_eq!(
+        api.users
+            .get()
+            .query(GetUsersQuery { limit: Some(1) })
+            .limit(5)
+            .into_request(),
+        GetUsersRequest {
+            query: GetUsersQuery { limit: Some(5) }
+        }
+    );
+    assert_eq!(
+        api.users
+            .id(dora.id)
+            .put()
+            .body(new_user.clone())
+            .into_request(),
+        PutUsersByIdRequest {
+            id: dora.id,
+            body: new_user
+        }
+    );
+}
+
+#[tokio::test]
 async fn request_structs_run_on_the_client() {
     let base_url = start_server().await;
     let api = api(&base_url, "alice");

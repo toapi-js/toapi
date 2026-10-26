@@ -115,6 +115,9 @@ let mut live = api.users.id(123).get().watch();             // Stream<Item = Res
 - Optional query parameters and body fields can be left out. Required ones are
   tracked in the builder's type: a call missing one can't be awaited, and the
   error names it (`PostUsersCall<Set, Unset<required::role>>` is not a future).
+- `.query(..)` and `.body(..)` take a whole query or body struct instead,
+  e.g. `api.users.post().body(new_user)`. A whole body sets all of its
+  required fields; individual setters can still follow it.
 - Only GET calls have `.watch()`.
 - Awaiting a mutation invalidates the tags it returned and refetches the
   watched queries before it resolves. Mutations by other clients arrive over

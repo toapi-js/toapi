@@ -683,6 +683,8 @@ mod tests {
             "pub fn id(&self, id: u64) -> UsersByIdRoute",
             "pub fn get(&self) -> GetUsersByIdCall",
             "pub fn include_posts(mut self, value: bool) -> Self",
+            "pub fn query(self, value: GetUsersByIdQuery)",
+            "value: PutUsersByIdRequestBody,\n    ) -> PutUsersByIdCall<::toapi_client::state::Set, ::toapi_client::state::Set>",
             "pub fn name(",
             "pub struct name;",
         ] {

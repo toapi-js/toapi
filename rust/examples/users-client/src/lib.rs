@@ -44,6 +44,10 @@
 //! api.users.post().name("Ada").role(Role::Admin).await;
 //! api.users.id(1).get().await;
 //! api.users.get().limit(10).await;
+//! api.users.get().query(users_client::GetUsersQuery { limit: Some(10) }).await;
+//! // a whole body sets all required fields
+//! let ada = users_client::NewUser { name: "Ada".into(), role: Role::Admin };
+//! api.users.post().body(ada).await;
 //! api.client().call(users_client::GetUsersByIdRequest { id: 1 }).watch();
 //! # }
 //! ```
