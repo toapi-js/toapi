@@ -206,19 +206,6 @@ impl<S: Clone + Send + Sync + 'static> Api<S> {
         self
     }
 
-    /// Invalidates tags outside of a request, like the TypeScript server's
-    /// `api.invalidate`.
-    pub fn invalidate<I>(&self, tags: I)
-    where
-        I: IntoIterator,
-        I::Item: Into<String>,
-    {
-        let tags: Vec<String> = tags.into_iter().map(Into::into).collect();
-        if !tags.is_empty() {
-            self.cache.invalidate(tags, None);
-        }
-    }
-
     /// The OpenAPI 3.1 document of the API.
     pub fn openapi(&self) -> serde_json::Value {
         let mut generators = Generators::new();
