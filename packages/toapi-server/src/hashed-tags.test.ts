@@ -1,6 +1,6 @@
 import { describe, expect, test, vi } from "vitest";
 import { defineApi } from "./define-api.js";
-import { PubSub } from "./cache.js";
+import { type CacheEntry, PubSub } from "./cache.js";
 import { createRequestHandler } from "./create-request-handler.js";
 import { defineHandler } from "./define-handler.js";
 import { INVALIDATIONS_ROUTE, TAGS_HEADER, TResponse } from "@toapi/common";
@@ -15,7 +15,18 @@ describe("Hashed Tags", async () => {
     tags.map((tag) => hashTag(te, secret, tag)),
   );
 
-  const cache = new PubSub();
+  // minimal in-memory cache so GET responses can be served from the server cache
+  class MemoryCache extends PubSub {
+    entries = new Map<string, CacheEntry>();
+    override async get(key: string) {
+      return this.entries.get(key) ?? null;
+    }
+    override async set({ key, data, attachment }: CacheEntry & { key: string }) {
+      this.entries.set(key, { data, attachment });
+    }
+  }
+
+  const cache = new MemoryCache();
 
   const respond = vi.fn(async () => {
     return TResponse.void({ cache: { tags } });
@@ -45,6 +56,13 @@ describe("Hashed Tags", async () => {
       },
       respond,
     ),
+  }).route("/cached", {
+    GET: defineHandler(
+      {
+        authorize: () => true,
+      },
+      respond,
+    ),
   });
 
   const handler = createRequestHandler(api);
@@ -60,6 +78,18 @@ describe("Hashed Tags", async () => {
       expect(res.headers.get(TAGS_HEADER)).toBe(expectedTags.join(" "));
     },
   );
+
+  // https://github.com/toapi-js/toapi/issues/534
+  test("hashes tags in GET response served from server cache", async () => {
+    const first = await handler(new Request("http://localhost/cached"));
+    expect(first.headers.get(TAGS_HEADER)).toBe(expectedTags.join(" "));
+
+    const callsBefore = respond.mock.calls.length;
+    const second = await handler(new Request("http://localhost/cached"));
+    // second request must be a cache hit
+    expect(respond.mock.calls.length).toBe(callsBefore);
+    expect(second.headers.get(TAGS_HEADER)).toBe(expectedTags.join(" "));
+  });
 
   test("hashes tags in invalidation stream", async () => {
     const stream = await handler(
