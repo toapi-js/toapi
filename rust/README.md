@@ -53,8 +53,7 @@ async fn update_user(
 }
 
 pub fn api() -> Api<AppState> {
-    Api::new()
-        .info("Users", "1.0.0")
+    Api::new("Users", "1.0.0")
         .route("/users", get(list_users).post(create_user))
         .route("/users/{id}", get(get_user).put(update_user).delete(delete_user))
 }

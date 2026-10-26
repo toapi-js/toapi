@@ -99,17 +99,13 @@ pub struct Api<S> {
     hash_secret: Option<String>,
 }
 
-impl<S: Clone + Send + Sync + 'static> Default for Api<S> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl<S: Clone + Send + Sync + 'static> Api<S> {
-    pub fn new() -> Self {
+    /// An API without routes. `title` and `version` describe it in the
+    /// OpenAPI document.
+    pub fn new(title: impl Into<String>, version: impl Into<String>) -> Self {
         Api {
-            title: "API".into(),
-            version: "0.0.0".into(),
+            title: title.into(),
+            version: version.into(),
             routes: Vec::new(),
             cache: Arc::new(PubSub::new()),
             throttle: Duration::from_millis(500),
@@ -117,13 +113,6 @@ impl<S: Clone + Send + Sync + 'static> Api<S> {
             filter: None,
             hash_secret: None,
         }
-    }
-
-    /// Title and version of the OpenAPI document.
-    pub fn info(mut self, title: impl Into<String>, version: impl Into<String>) -> Self {
-        self.title = title.into();
-        self.version = version.into();
-        self
     }
 
     /// Adds a route. `path` uses axum's syntax (`/users/{id}`, `/files/{*rest}`),

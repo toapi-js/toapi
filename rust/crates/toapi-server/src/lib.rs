@@ -1,8 +1,7 @@
 //! Define a REST API once, on top of axum.
 //!
 //! ```ignore
-//! let api = Api::new()
-//!     .info("Users", "1.0.0")
+//! let api = Api::new("Users", "1.0.0")
 //!     .route("/users", get(list_users).post(create_user))
 //!     .route("/users/{id}", get(get_user).put(update_user).delete(delete_user));
 //!
