@@ -195,3 +195,17 @@ async fn watch_subscriptions_refetch_without_being_polled() {
     client.invalidate(["counter"]).await;
     assert_eq!(hits.load(Ordering::SeqCst), 3);
 }
+
+#[tokio::test]
+async fn dropping_an_unpolled_watch_stream_unsubscribes() {
+    let (base_url, hits) = start_server().await;
+    let client = client(&base_url);
+    assert_eq!(*client.call(GetCount).await.unwrap(), 1);
+
+    // subscribed by `watch()`, dropped without ever being polled
+    let watch = client.call(GetCount).watch();
+    drop(watch);
+
+    client.invalidate(["counter"]).await;
+    assert_eq!(hits.load(Ordering::SeqCst), 1);
+}
