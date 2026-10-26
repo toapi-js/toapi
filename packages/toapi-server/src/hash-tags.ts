@@ -32,7 +32,7 @@ export function textEncoder(): Encode {
 
 export async function encodeTags(
   secret: string | undefined,
-  res: TResponse<unknown>,
+  res: Response & { cache?: TResponse<unknown>["cache"] },
 ) {
   if (!secret) return;
   const tags =

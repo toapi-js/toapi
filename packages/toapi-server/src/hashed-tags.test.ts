@@ -1,6 +1,6 @@
+import { InMemoryCache } from "@toapi/cache/in-memory-cache";
 import { describe, expect, test, vi } from "vitest";
 import { defineApi } from "./define-api.js";
-import { type CacheEntry, PubSub } from "./cache.js";
 import { createRequestHandler } from "./create-request-handler.js";
 import { defineHandler } from "./define-handler.js";
 import { INVALIDATIONS_ROUTE, TAGS_HEADER, TResponse } from "@toapi/common";
@@ -15,18 +15,7 @@ describe("Hashed Tags", async () => {
     tags.map((tag) => hashTag(te, secret, tag)),
   );
 
-  // minimal in-memory cache so GET responses can be served from the server cache
-  class MemoryCache extends PubSub {
-    entries = new Map<string, CacheEntry>();
-    override async get(key: string) {
-      return this.entries.get(key) ?? null;
-    }
-    override async set({ key, data, attachment }: CacheEntry & { key: string }) {
-      this.entries.set(key, { data, attachment });
-    }
-  }
-
-  const cache = new MemoryCache();
+  const cache = new InMemoryCache();
 
   const respond = vi.fn(async () => {
     return TResponse.void({ cache: { tags } });
@@ -89,6 +78,12 @@ describe("Hashed Tags", async () => {
     // second request must be a cache hit
     expect(respond.mock.calls.length).toBe(callsBefore);
     expect(second.headers.get(TAGS_HEADER)).toBe(expectedTags.join(" "));
+
+    // tags are kept in plain text in cache storage
+    const stored = new Headers(
+      (await cache.get("http://localhost/cached"))?.data as [string, string][],
+    );
+    expect(stored.get(TAGS_HEADER)).toBe(tags.join(" "));
   });
 
   test("hashes tags in invalidation stream", async () => {
