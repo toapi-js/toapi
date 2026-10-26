@@ -1,3 +1,7 @@
+// runs against a local axum server, so native targets only; see wasm.rs for
+// the browser
+#![cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+
 //! The cache against a small counting server: requests are shared, responses
 //! are parsed once, and invalidation drops entries.
 

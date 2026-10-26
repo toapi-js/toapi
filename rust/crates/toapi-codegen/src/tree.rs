@@ -502,7 +502,7 @@ impl Generator {
                         ::std::sync::Arc<<#request as ::toapi_client::Request>::Response>,
                         ::toapi_client::Error,
                     >,
-                > + Send + 'static {
+                > + ::toapi_client::__private::MaybeSend + 'static {
                     let client = self.__client.clone();
                     client.call(self.into_request()).watch()
                 }

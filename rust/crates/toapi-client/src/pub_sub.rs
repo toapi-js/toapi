@@ -3,9 +3,7 @@ use std::{
     sync::Arc,
 };
 
-use futures::future::BoxFuture;
-
-use crate::client::Inner;
+use crate::{client::Inner, rt::BoxFuture};
 
 /// Called with the URLs of invalidated cache entries, like the callbacks of
 /// the TypeScript client's `PubSub`. A watch stream's callback refetches its

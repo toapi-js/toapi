@@ -168,6 +168,30 @@ let user = api.client().call(request).await?;
 let user = api.client().call(GetUsersByIdRequest { id: 123 }).await?;
 ```
 
+## WebAssembly
+
+`toapi-client` and generated clients work in the browser
+(`wasm32-unknown-unknown`):
+
+- Requests go through the browser's `fetch`, tasks run with
+  `wasm_bindgen_futures::spawn_local`, timers use `gloo-timers`, and the clock
+  is `Date.now()`.
+- Futures and streams from the client are `Send` on native targets only
+  (`toapi_client::__private::MaybeSend`); the browser runs everything on one
+  thread.
+- The browser keeps cookies, and the client sends them with every request, so
+  the server can tell a client's own invalidations apart. A cross-origin API
+  has to allow credentials in its CORS headers.
+
+The tests in `crates/toapi-client/tests/wasm.rs` run the client in Node
+against a small HTTP server written in JavaScript:
+
+```sh
+rustup target add wasm32-unknown-unknown
+cargo install wasm-bindgen-cli --version <wasm-bindgen version in Cargo.lock>
+cargo test -p toapi-client --target wasm32-unknown-unknown --test wasm
+```
+
 ## Not covered yet
 
 - Server-side response caching (the TypeScript server's `Cache`); tags and

@@ -1,13 +1,16 @@
 use std::{
     collections::HashSet,
-    future::{Future, IntoFuture},
+    future::IntoFuture,
     marker::PhantomData,
-    pin::Pin,
     sync::{Arc, Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard},
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::Duration,
 };
 
-use futures::{FutureExt, Stream, future::join_all};
+use futures::{
+    FutureExt, Stream,
+    channel::oneshot,
+    future::{AbortHandle, abortable, join_all},
+};
 use reqwest::header::CONTENT_TYPE;
 use serde::de::DeserializeOwned;
 use toapi_core::{EXPIRES_AT_HEADER, INVALIDATIONS_ROUTE, TAGS_HEADER};
@@ -18,7 +21,8 @@ use crate::{
     cache::{Cache, SharedResult, Value},
     pub_sub::{Callback, PubSub},
     request::{Kind, Mutation, Query, Request},
-    stream::spawn_listener,
+    rt::{self, BoxFuture, MaybeSend},
+    stream::listen,
 };
 
 /// Default of [`ClientBuilder::min_ttl`], as in the TypeScript client.
@@ -32,7 +36,8 @@ impl<T: DeserializeOwned + Send + Sync + 'static> Cacheable for T {}
 
 struct Meta {
     tags: HashSet<String>,
-    expires_at: Option<SystemTime>,
+    /// Milliseconds since the Unix epoch, as sent by the server.
+    expires_at: Option<u64>,
 }
 
 pub(crate) struct Inner {
@@ -44,7 +49,7 @@ pub(crate) struct Inner {
     /// Subscriptions to the URLs of invalidated entries, held by the watch
     /// streams.
     pub_sub: RwLock<PubSub>,
-    listener: Mutex<Option<tokio::task::AbortHandle>>,
+    listener: Mutex<Option<AbortHandle>>,
 }
 
 impl Drop for Inner {
@@ -76,10 +81,11 @@ impl Inner {
     fn spawn_request<T: Cacheable>(self: &Arc<Self>, url: String, id: u64) -> SharedResult {
         let http = self.http.clone();
         let inner = Arc::downgrade(self);
-        let task = tokio::spawn(async move {
+        let (sender, receiver) = oneshot::channel();
+        rt::spawn(async move {
             let loaded = load::<T>(&http, &url).await;
             let inner = inner.upgrade();
-            match loaded {
+            let result = match loaded {
                 Ok((value, meta)) => {
                     if let Some(inner) = inner {
                         inner.settle(url, id, meta);
@@ -92,13 +98,15 @@ impl Inner {
                     }
                     Err(error)
                 }
-            }
+            };
+            // nobody may be waiting anymore, that's fine
+            let _ = sender.send(result);
         });
-        async move {
-            task.await
-                .unwrap_or_else(|e| Err(Error::Internal(format!("request task failed: {e}"))))
-        }
-        .boxed()
+        rt::boxed(async move {
+            receiver
+                .await
+                .unwrap_or_else(|_| Err(Error::Internal("the request task stopped".into())))
+        })
         .shared()
     }
 
@@ -108,13 +116,11 @@ impl Inner {
         let Some(expires_at) = meta.expires_at else {
             return;
         };
-        let delay = expires_at
-            .duration_since(SystemTime::now())
-            .unwrap_or_default()
-            + jitter(self.max_overdue_ttl);
+        let delay = Duration::from_millis(expires_at.saturating_sub(rt::now_ms()))
+            + rt::jitter(self.max_overdue_ttl);
         let inner = Arc::downgrade(self);
-        tokio::spawn(async move {
-            tokio::time::sleep(delay).await;
+        rt::spawn(async move {
+            rt::sleep(delay).await;
             let Some(inner) = inner.upgrade() else { return };
             if inner.cache.remove(&url, id) {
                 inner.publish(HashSet::from([url])).await;
@@ -126,8 +132,8 @@ impl Inner {
     fn drop_failed(self: &Arc<Self>, url: String, id: u64) {
         let min_ttl = self.min_ttl;
         let inner = Arc::downgrade(self);
-        tokio::spawn(async move {
-            tokio::time::sleep(min_ttl).await;
+        rt::spawn(async move {
+            rt::sleep(min_ttl).await;
             if let Some(inner) = inner.upgrade() {
                 inner.cache.remove(&url, id);
             }
@@ -181,28 +187,18 @@ impl Inner {
 }
 
 async fn load<T: Cacheable>(http: &reqwest::Client, url: &str) -> Result<(Value, Meta), Error> {
-    let res = check_status(http.get(url).send().await?).await?;
+    let res = check_status(rt::with_credentials(http.get(url)).send().await?).await?;
     let meta = Meta {
         tags: header_tags(&res),
         expires_at: res
             .headers()
             .get(EXPIRES_AT_HEADER)
             .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.parse::<u64>().ok())
-            .map(|ms| UNIX_EPOCH + Duration::from_millis(ms)),
+            .and_then(|v| v.parse::<u64>().ok()),
     };
     let body = res.bytes().await?;
     let value: T = decode(&body)?;
     Ok((Arc::new(value), meta))
-}
-
-/// A pseudo-random delay up to `max`.
-fn jitter(max: Duration) -> Duration {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .subsec_nanos();
-    max.mul_f64(f64::from(nanos % 1000) / 1000.0)
 }
 
 async fn check_status(res: reqwest::Response) -> Result<reqwest::Response, Error> {
@@ -243,9 +239,10 @@ pub struct ClientBuilder {
 }
 
 impl ClientBuilder {
-    /// Uses a custom `reqwest::Client`. It should keep cookies
-    /// (`cookie_store(true)`), so the server can tell this client's own
-    /// invalidations apart on the invalidation stream.
+    /// Uses a custom `reqwest::Client`. On native targets it should keep
+    /// cookies (`cookie_store(true)`), so the server can tell this client's
+    /// own invalidations apart on the invalidation stream. In the browser,
+    /// the browser keeps them.
     pub fn http_client(mut self, http: reqwest::Client) -> Self {
         self.http = Some(http);
         self
@@ -278,15 +275,17 @@ impl ClientBuilder {
 
     /// # Panics
     ///
-    /// When the invalidation stream is enabled and this isn't called from
-    /// within a tokio runtime.
+    /// On native targets, when the invalidation stream is enabled and this
+    /// isn't called from within a tokio runtime.
+    // In the browser, `Inner` holds futures that aren't `Send`, so it isn't
+    // `Send + Sync` there; the browser runs everything on one thread, and the
+    // same code needs the `Arc` on native targets.
+    #[cfg_attr(
+        all(target_arch = "wasm32", target_os = "unknown"),
+        allow(clippy::arc_with_non_send_sync)
+    )]
     pub fn build(self) -> Client {
-        let http = self.http.unwrap_or_else(|| {
-            reqwest::Client::builder()
-                .cookie_store(true)
-                .build()
-                .expect("failed to build the HTTP client")
-        });
+        let http = self.http.unwrap_or_else(rt::default_http_client);
         let base_url = self.base_url.trim_end_matches('/').to_string();
         let inner = Arc::new(Inner {
             http: http.clone(),
@@ -298,11 +297,14 @@ impl ClientBuilder {
             listener: Mutex::default(),
         });
         if self.invalidation_stream {
-            let handle = spawn_listener(
+            let (listener, handle) = abortable(listen(
                 Arc::downgrade(&inner),
                 http,
                 format!("{base_url}{INVALIDATIONS_ROUTE}"),
-            );
+            ));
+            rt::spawn(async move {
+                let _ = listener.await;
+            });
             *inner.listener.lock().unwrap() = Some(handle);
         }
         Client { inner }
@@ -385,8 +387,6 @@ impl Client {
     }
 }
 
-type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send>>;
-
 /// A GET request, returned by [`Client::call`].
 #[must_use = "a query does nothing until it is awaited or watched"]
 pub struct QueryCall<R> {
@@ -406,7 +406,9 @@ where
     ///
     /// The responses are shared with the cache, like the result of awaiting
     /// the query.
-    pub fn watch(self) -> impl Stream<Item = Result<Arc<R::Response>, Error>> + Send + 'static {
+    pub fn watch(
+        self,
+    ) -> impl Stream<Item = Result<Arc<R::Response>, Error>> + MaybeSend + 'static {
         let QueryCall { inner, url, .. } = self;
 
         // subscribe right away, like the TypeScript client: the callback
@@ -420,13 +422,12 @@ where
             let callback: Callback = Arc::new(move |inner, urls| {
                 let sender = sender.clone();
                 let url = url.clone();
-                async move {
+                rt::boxed(async move {
                     if urls.contains(&url) {
                         let result = inner.query::<R::Response>(&url).await;
                         sender.send_replace(Some(result));
                     }
-                }
-                .boxed()
+                })
             });
             Subscription::new(inner.clone(), callback)
         });
@@ -459,10 +460,10 @@ where
     R::Response: Send + Sync + 'static,
 {
     type Output = Result<Arc<R::Response>, Error>;
-    type IntoFuture = BoxFuture<Self::Output>;
+    type IntoFuture = BoxFuture<'static, Self::Output>;
 
     fn into_future(self) -> Self::IntoFuture {
-        Box::pin(async move { self.inner.query::<R::Response>(&self.url?).await })
+        rt::boxed(async move { self.inner.query::<R::Response>(&self.url?).await })
     }
 }
 
@@ -499,12 +500,12 @@ where
     R::Response: Send + 'static,
 {
     type Output = Result<R::Response, Error>;
-    type IntoFuture = BoxFuture<Self::Output>;
+    type IntoFuture = BoxFuture<'static, Self::Output>;
 
     fn into_future(self) -> Self::IntoFuture {
-        Box::pin(async move {
+        rt::boxed(async move {
             let (url, body) = self.prepared?;
-            let mut request = self.inner.http.request(R::METHOD, &url);
+            let mut request = rt::with_credentials(self.inner.http.request(R::METHOD, &url));
             if let Some(body) = body {
                 request = request.header(CONTENT_TYPE, "application/json").body(body);
             }

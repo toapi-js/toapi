@@ -8,9 +8,9 @@ use std::{
 };
 
 use dashmap::DashMap;
-use futures::future::{BoxFuture, Shared};
+use futures::future::Shared;
 
-use crate::Error;
+use crate::{Error, rt::BoxFuture};
 
 /// A parsed response. Stored type-erased because one cache holds the
 /// responses of every route; readers downcast it to the route's response type.
@@ -115,9 +115,7 @@ mod tests {
     use super::*;
 
     fn ready(value: &'static str) -> SharedResult {
-        futures::future::ready(Ok(Arc::new(value) as Value))
-            .boxed()
-            .shared()
+        crate::rt::boxed(futures::future::ready(Ok(Arc::new(value) as Value))).shared()
     }
 
     fn tags(tags: &[&str]) -> HashSet<String> {

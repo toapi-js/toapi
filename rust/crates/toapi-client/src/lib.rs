@@ -42,6 +42,7 @@ mod client;
 mod error;
 mod pub_sub;
 mod request;
+mod rt;
 mod stream;
 
 pub use client::{Client, ClientBuilder, MutationCall, QueryCall};
@@ -55,6 +56,8 @@ pub mod state;
 #[doc(hidden)]
 pub mod __private {
     pub use futures::Stream;
+
+    pub use crate::rt::MaybeSend;
     pub use serde;
     pub use serde_json;
 
