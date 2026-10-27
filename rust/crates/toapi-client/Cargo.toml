@@ -1,0 +1,42 @@
+[package]
+name = "toapi-client"
+description = "Typed Toapi client with a tag-based cache, live queries and the invalidation stream"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+toapi-core.workspace = true
+toapi-macros.workspace = true
+async-stream.workspace = true
+futures.workspace = true
+percent-encoding.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_urlencoded.workspace = true
+# only the parts that work in the browser; the runtime is native-only below
+tokio = { version = "1", default-features = false, features = ["sync"] }
+dashmap.workspace = true
+
+[target.'cfg(not(all(target_arch = "wasm32", target_os = "unknown")))'.dependencies]
+tokio = { version = "1", features = ["rt", "time"] }
+
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
+gloo-timers = { version = "0.3", features = ["futures"] }
+js-sys = "0.3"
+wasm-bindgen-futures = "0.4"
+
+[dev-dependencies]
+futures.workspace = true
+serde.workspace = true
+
+[target.'cfg(not(all(target_arch = "wasm32", target_os = "unknown")))'.dev-dependencies]
+axum.workspace = true
+tokio.workspace = true
+
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dev-dependencies]
+gloo-timers = { version = "0.3", features = ["futures"] }
+wasm-bindgen = "0.2"
+wasm-bindgen-test = "0.3"

@@ -1,0 +1,16 @@
+[package]
+name = "toapi-cache"
+description = "Server-side response caches for Toapi"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+toapi-core.workspace = true
+dashmap.workspace = true
+tokio = { version = "1", default-features = false, features = ["sync"] }
+
+[dev-dependencies]
+bytes.workspace = true
+tokio = { version = "1", features = ["macros", "rt", "time"] }
