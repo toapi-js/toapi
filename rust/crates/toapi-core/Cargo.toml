@@ -1,9 +1,11 @@
 [package]
 name = "toapi-core"
-description = "Wire constants and route naming shared by the Toapi server, client and codegen"
+description = "Wire constants, route naming and the cache interface shared by the Toapi crates"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
 [dependencies]
+bytes.workspace = true
+tokio = { version = "1", default-features = false, features = ["sync"] }

@@ -4,6 +4,11 @@
 //! - parsing of route templates such as `/users/{id}`
 //! - the deterministic naming scheme that maps `GET /users/{id}` to
 //!   `GetUsersByIdRequest` and friends
+//! - the server [`Cache`] interface
+
+mod cache;
+
+pub use cache::{BoxFuture, Cache, CacheEntry, Invalidation, Lookup};
 
 pub const TAGS_HEADER: &str = "X-TAPI-Tags";
 pub const EXPIRES_AT_HEADER: &str = "X-TAPI-Expires-At";

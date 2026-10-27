@@ -6,6 +6,7 @@ edition.workspace = true
 publish = false
 
 [dependencies]
+toapi-cache.workspace = true
 toapi-server.workspace = true
 axum.workspace = true
 schemars.workspace = true

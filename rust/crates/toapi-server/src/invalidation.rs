@@ -11,12 +11,12 @@ use axum::{
 };
 use bytes::Bytes;
 use sha2::{Digest, Sha256};
-use toapi_core::{EXPIRES_AT_HEADER, SESSION_COOKIE_NAME, TAGS_CONTENT_TYPE, TAGS_HEADER};
+use toapi_core::{Cache, EXPIRES_AT_HEADER, SESSION_COOKIE_NAME, TAGS_CONTENT_TYPE, TAGS_HEADER};
 use tokio::sync::{broadcast, mpsc};
 use tokio_stream::wrappers::ReceiverStream;
 
 use crate::{
-    cache::{Cache, RequestCache},
+    cache::RequestCache,
     response::{TagInfo, TagKind},
     route::ServerContext,
 };

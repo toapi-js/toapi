@@ -1425,6 +1425,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fd3ca314f692efd6c868f8408f53fe444634a845f96c028b97d35f6a1f79f0ee"
 
 [[package]]
+name = "toapi-cache"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "dashmap",
+ "toapi-core",
+ "tokio",
+]
+
+[[package]]
 name = "toapi-client"
 version = "0.1.0"
 dependencies = [
@@ -1462,6 +1472,10 @@ dependencies = [
 [[package]]
 name = "toapi-core"
 version = "0.1.0"
+dependencies = [
+ "bytes",
+ "tokio",
+]
 
 [[package]]
 name = "toapi-macros"
@@ -1480,12 +1494,12 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "bytes",
- "dashmap",
  "futures",
  "schemars",
  "serde",
  "serde_json",
  "sha2",
+ "toapi-cache",
  "toapi-core",
  "tokio",
  "tokio-stream",
@@ -1677,6 +1691,7 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
+ "toapi-cache",
  "toapi-server",
  "tokio",
 ]

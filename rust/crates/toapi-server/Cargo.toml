@@ -10,7 +10,6 @@ repository.workspace = true
 toapi-core.workspace = true
 axum.workspace = true
 bytes.workspace = true
-dashmap.workspace = true
 futures.workspace = true
 schemars.workspace = true
 serde.workspace = true
@@ -21,4 +20,5 @@ tokio-stream.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
+toapi-cache.workspace = true
 tower = { version = "0.5", features = ["util"] }

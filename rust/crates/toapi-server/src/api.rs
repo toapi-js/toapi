@@ -13,11 +13,11 @@ use axum::{
     middleware,
     routing::{self, MethodRouter},
 };
-use toapi_core::{INVALIDATIONS_ROUTE, OPENAPI_ROUTE};
+use toapi_core::{Cache, INVALIDATIONS_ROUTE, OPENAPI_ROUTE};
 
 use crate::{
     auth::Authorize,
-    cache::{Cache, PubSub},
+    cache::PubSub,
     handler::{DocumentedHandler, MutationKind, QueryKind},
     invalidation::{FilterFactory, StreamConfig, TagFilter, invalidation_stream, tag_middleware},
     openapi::{DocumentedOperation, Generators, OperationDoc, build_document, path_parameters},
@@ -216,7 +216,7 @@ impl<S: Clone + Send + Sync + 'static> Api<S> {
     }
 
     /// Replaces the default [`PubSub`] cache, which caches nothing, e.g. with
-    /// an [`InMemoryCache`](crate::InMemoryCache) or one backed by Redis.
+    /// `toapi_cache::InMemoryCache` or one backed by Redis.
     /// Keep a clone of the `Arc` to invalidate tags outside of requests,
     /// e.g. from a background job:
     ///

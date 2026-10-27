@@ -18,9 +18,10 @@ use axum::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use toapi_cache::InMemoryCache;
 use toapi_server::{
-    Api, Auth, Cached, Generators, HttpError, InMemoryCache, Invalidates, OperationDoc,
-    OperationInput, get, public,
+    Api, Auth, Cached, Generators, HttpError, Invalidates, OperationDoc, OperationInput, get,
+    public,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

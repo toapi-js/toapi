@@ -4,13 +4,14 @@ use axum::{
     body::Body,
     extract::{OriginalUri, Request},
     handler::Handler,
-    http::{StatusCode, request::Parts},
+    http::{StatusCode, header, request::Parts},
     response::{IntoResponse, Response},
 };
 
+use toapi_core::{Cache, CacheEntry, Lookup};
+
 use crate::{
     auth::{Authorize, Authorized},
-    cache::{Cache, CacheEntry, Lookup},
     response::{TagInfo, TagKind, now_ms},
 };
 
@@ -58,7 +59,7 @@ where
     let lookup = if query {
         let key = cache_key(&parts);
         match context.cache.get(&key).await {
-            Lookup::Hit(entry) => return entry.into_response(),
+            Lookup::Hit(entry) => return cached_response(entry),
             Lookup::Miss(token) => Some((key, token)),
         }
     } else {
@@ -116,4 +117,16 @@ async fn store(context: &ServerContext, key: String, token: u64, res: Response) 
     };
     context.cache.set(key, entry, ttl, token).await;
     Response::from_parts(parts, Body::from(body))
+}
+
+/// A stored response, tagged like a fresh one so the tag middleware writes
+/// its headers.
+fn cached_response(entry: CacheEntry) -> Response {
+    let mut res = ([(header::CONTENT_TYPE, "application/json")], entry.body).into_response();
+    res.extensions_mut().insert(TagInfo {
+        kind: TagKind::Cache,
+        tags: entry.tags,
+        expires_at: entry.expires_at,
+    });
+    res
 }

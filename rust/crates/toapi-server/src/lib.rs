@@ -2,7 +2,7 @@
 //!
 //! ```ignore
 //! let api = Api::new("Users", "1.0.0")
-//!     .cache(Arc::new(InMemoryCache::new()))
+//!     .cache(Arc::new(toapi_cache::InMemoryCache::new()))
 //!     .route("/users", get(public, list_users).post(signed_in, create_user))
 //!     .route("/users/{id}", get(public, get_user).put(signed_in, update_user));
 //!
@@ -37,10 +37,11 @@ mod route;
 
 pub use api::{Api, MethodRoutes, delete, get, patch, post, put};
 pub use auth::{Auth, Authorize, public};
-pub use cache::{Cache, CacheEntry, InMemoryCache, Invalidation, Lookup, PubSub, RequestCache};
+pub use cache::{PubSub, RequestCache};
 pub use error::HttpError;
 pub use handler::{DocumentedHandler, HandlerOutput, MutationKind, QueryKind};
 pub use openapi::{Generators, OperationDoc, OperationInput};
 pub use response::{Cached, Invalidates};
 
 pub use schemars;
+pub use toapi_core::{Cache, CacheEntry, Invalidation, Lookup};

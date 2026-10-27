@@ -15,7 +15,8 @@ use axum::{
     extract::State,
     http::{HeaderMap, Request, StatusCode},
 };
-use toapi_server::{Api, Auth, Cached, HttpError, InMemoryCache, Invalidates, get, public};
+use toapi_cache::InMemoryCache;
+use toapi_server::{Api, Auth, Cached, HttpError, Invalidates, get, public};
 use tower::ServiceExt;
 
 #[derive(Clone, Default)]

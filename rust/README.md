@@ -22,8 +22,9 @@ same as in the TypeScript packages.
 
 | Crate | |
 |---|---|
-| `toapi-core` | Wire constants and the route naming scheme shared by everything else |
+| `toapi-core` | Wire constants, the route naming scheme and the server `Cache` trait, shared by everything else |
 | `toapi-server` | `Api` builder on axum, `Cached`/`Invalidates` responses, invalidation stream, OpenAPI |
+| `toapi-cache` | Server `Cache` implementations: `InMemoryCache` |
 | `toapi-codegen` | OpenAPI → path tree, call builders and request types; used by `generate!` and build scripts |
 | `toapi-client` | `Client` with tag cache, `watch()` streams and the invalidation stream listener; re-exports `generate!` |
 | `toapi-macros` | `generate!`: runs `toapi-codegen` at compile time |
@@ -96,7 +97,9 @@ server:
   the response goes out, then sends the tags to the invalidation streams. A
   response computed while its tags were invalidated isn't stored.
 - `PubSub`, the default, caches nothing and only passes invalidations on.
-  `InMemoryCache` caches within one process; `.cache(Arc::new(..))` sets it.
+  `toapi_cache::InMemoryCache` caches within one process;
+  `.cache(Arc::new(..))` sets it. Other caches (Redis, Postgres) implement
+  the `Cache` trait from `toapi-core`.
 - Tags can be invalidated imperatively: in a handler through the
   `RequestCache` extractor (`cache.invalidate(["users"]).await`, attributed to
   the calling client like `req.invalidate`), elsewhere through the `Cache` you
