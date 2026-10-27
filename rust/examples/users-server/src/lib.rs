@@ -3,6 +3,7 @@
 
 use std::{
     collections::BTreeMap,
+    convert::Infallible,
     sync::{
         Arc, Mutex,
         atomic::{AtomicU64, Ordering},
@@ -18,7 +19,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use toapi_server::{
-    Api, Cached, Generators, HttpError, Invalidates, OperationDoc, OperationInput, get,
+    Api, Auth, Cached, Generators, HttpError, InMemoryCache, Invalidates, OperationDoc,
+    OperationInput, get, public,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -59,6 +61,7 @@ pub struct AppState {
 }
 
 /// The signed in user, from `Authorization: Bearer <name>`.
+#[derive(Debug, Clone)]
 pub struct Session {
     pub name: String,
 }
@@ -104,8 +107,14 @@ async fn get_user(
     Ok(Cached::new(user).tags([format!("user:{id}")]))
 }
 
+/// The `authorize` of the mutations: the `Session` extractor rejects requests
+/// without one (and documents the `401`).
+async fn signed_in(session: Session) -> Result<Session, Infallible> {
+    Ok(session)
+}
+
 async fn create_user(
-    _session: Session,
+    Auth(_session): Auth<Session>,
     State(state): State<AppState>,
     Json(new_user): Json<NewUser>,
 ) -> Invalidates<User> {
@@ -120,7 +129,6 @@ async fn create_user(
 }
 
 async fn update_user(
-    _session: Session,
     State(state): State<AppState>,
     Path(UserPath { id }): Path<UserPath>,
     Json(new_user): Json<NewUser>,
@@ -133,7 +141,6 @@ async fn update_user(
 }
 
 async fn delete_user(
-    _session: Session,
     State(state): State<AppState>,
     Path(UserPath { id }): Path<UserPath>,
 ) -> Result<Invalidates<()>, HttpError> {
@@ -148,9 +155,15 @@ async fn delete_user(
 
 pub fn api() -> Api<AppState> {
     Api::new("Users", "1.0.0")
-        .route("/users", get(list_users).post(create_user))
+        .cache(Arc::new(InMemoryCache::new()))
+        .route(
+            "/users",
+            get(public, list_users).post(signed_in, create_user),
+        )
         .route(
             "/users/{id}",
-            get(get_user).put(update_user).delete(delete_user),
+            get(public, get_user)
+                .put(signed_in, update_user)
+                .delete(signed_in, delete_user),
         )
 }

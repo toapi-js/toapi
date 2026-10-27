@@ -1480,6 +1480,7 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "bytes",
+ "dashmap",
  "futures",
  "schemars",
  "serde",
@@ -1488,6 +1489,7 @@ dependencies = [
  "toapi-core",
  "tokio",
  "tokio-stream",
+ "tower",
  "uuid",
 ]
 

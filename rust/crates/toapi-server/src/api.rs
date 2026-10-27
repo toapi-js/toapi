@@ -1,8 +1,13 @@
-use std::{future::Future, sync::Arc, time::Duration};
+use std::{
+    any::{TypeId, type_name},
+    future::Future,
+    sync::Arc,
+    time::Duration,
+};
 
 use axum::{
     Json, Router,
-    extract::Request,
+    extract::{Request, State},
     handler::Handler,
     http::{Method, request::Parts},
     middleware,
@@ -11,33 +16,64 @@ use axum::{
 use toapi_core::{INVALIDATIONS_ROUTE, OPENAPI_ROUTE};
 
 use crate::{
+    auth::Authorize,
     cache::{Cache, PubSub},
     handler::{DocumentedHandler, MutationKind, QueryKind},
     invalidation::{FilterFactory, StreamConfig, TagFilter, invalidation_stream, tag_middleware},
     openapi::{DocumentedOperation, Generators, OperationDoc, build_document, path_parameters},
+    route::serve,
 };
+
+/// How long a tagged response without a TTL stays in the cache, like the
+/// TypeScript server's `DEFAULT_TTL`.
+const DEFAULT_TTL: Duration = Duration::from_secs(60 * 60 * 24 * 14);
 
 type DocFn = fn(&mut Generators) -> OperationDoc;
 
+struct Operation {
+    method: Method,
+    document: DocFn,
+    /// The type the route's `authorize` returns, for checking `Auth<A>`.
+    auth: (TypeId, &'static str),
+}
+
+/// The OpenAPI operation of a route method: what `authorize` and the handler
+/// contribute.
+fn document<Au, AuArgs, H, A, K, S>(generators: &mut Generators) -> OperationDoc
+where
+    Au: Authorize<AuArgs, S>,
+    H: DocumentedHandler<A, K>,
+{
+    let mut op = OperationDoc::default();
+    Au::document(&mut op, generators);
+    H::document(&mut op, generators);
+    op
+}
+
 /// The handlers of one route, built with [`get`], [`post`], [`put`],
 /// [`patch`] and [`delete`] and chained like axum's `MethodRouter`:
-/// `get(list_users).post(create_user)`.
+/// `get(public, list_users).post(signed_in, create_user)`.
+///
+/// Each takes the route's [`Authorize`] first, like the `authorize` of a
+/// TypeScript handler, then the handler.
 pub struct MethodRoutes<S> {
     router: MethodRouter<S>,
-    operations: Vec<(Method, DocFn)>,
+    operations: Vec<Operation>,
 }
 
 macro_rules! method_fns {
-    ($($name:ident => $method:ident, $kind:ty;)*) => {
+    ($($name:ident => $method:ident, $kind:ty, $query:literal;)*) => {
         $(
-            #[doc = concat!("Routes `", stringify!($method), "` requests to `handler`.")]
-            pub fn $name<H, T, A, S>(handler: H) -> MethodRoutes<S>
+            #[doc = concat!("Routes `", stringify!($method), "` requests through `authorize` to `handler`.")]
+            pub fn $name<Au, AuArgs, H, T, A, S>(authorize: Au, handler: H) -> MethodRoutes<S>
             where
+                Au: Authorize<AuArgs, S>,
+                AuArgs: 'static,
                 H: Handler<T, S> + DocumentedHandler<A, $kind>,
                 T: 'static,
                 S: Clone + Send + Sync + 'static,
             {
-                MethodRoutes::new().$name(handler)
+                MethodRoutes::new().$name(authorize, handler)
             }
         )*
 
@@ -50,19 +86,27 @@ macro_rules! method_fns {
             }
 
             $(
-                #[doc = concat!("Routes `", stringify!($method), "` requests to `handler`.")]
-                pub fn $name<H, T, A>(mut self, handler: H) -> Self
+                #[doc = concat!("Routes `", stringify!($method), "` requests through `authorize` to `handler`.")]
+                pub fn $name<Au, AuArgs, H, T, A>(mut self, authorize: Au, handler: H) -> Self
                 where
+                    Au: Authorize<AuArgs, S>,
+                    AuArgs: 'static,
                     H: Handler<T, S> + DocumentedHandler<A, $kind>,
                     T: 'static,
                 {
                     assert!(
-                        !self.operations.iter().any(|(m, _)| *m == Method::$method),
+                        !self.operations.iter().any(|op| op.method == Method::$method),
                         concat!("route already has a ", stringify!($method), " handler"),
                     );
-                    self.router = self.router.$name(handler);
-                    self.operations
-                        .push((Method::$method, <H as DocumentedHandler<A, $kind>>::document));
+                    let route = move |State(state): State<S>, req: Request| {
+                        serve::<Au, AuArgs, H, T, S>(authorize.clone(), handler.clone(), state, req, $query)
+                    };
+                    self.router = self.router.$name(route);
+                    self.operations.push(Operation {
+                        method: Method::$method,
+                        document: document::<Au, AuArgs, H, A, $kind, S>,
+                        auth: (TypeId::of::<Au::Auth>(), type_name::<Au::Auth>()),
+                    });
                     self
                 }
             )*
@@ -71,11 +115,11 @@ macro_rules! method_fns {
 }
 
 method_fns! {
-    get => GET, QueryKind;
-    post => POST, MutationKind;
-    put => PUT, MutationKind;
-    patch => PATCH, MutationKind;
-    delete => DELETE, MutationKind;
+    get => GET, QueryKind, true;
+    post => POST, MutationKind, false;
+    put => PUT, MutationKind, false;
+    patch => PATCH, MutationKind, false;
+    delete => DELETE, MutationKind, false;
 }
 
 struct RouteEntry<S> {
@@ -93,6 +137,7 @@ pub struct Api<S> {
     version: String,
     routes: Vec<RouteEntry<S>>,
     cache: Arc<dyn Cache>,
+    default_ttl: Duration,
     throttle: Duration,
     keepalive: Duration,
     filter: Option<FilterFactory>,
@@ -108,6 +153,7 @@ impl<S: Clone + Send + Sync + 'static> Api<S> {
             version: version.into(),
             routes: Vec::new(),
             cache: Arc::new(PubSub::new()),
+            default_ttl: DEFAULT_TTL,
             throttle: Duration::from_millis(500),
             keepalive: Duration::from_secs(10),
             filter: None,
@@ -120,8 +166,9 @@ impl<S: Clone + Send + Sync + 'static> Api<S> {
     ///
     /// # Panics
     ///
-    /// If the path is invalid, already registered, or its placeholders don't
-    /// match the handlers' `Path<T>` extractors.
+    /// If the path is invalid, already registered, its placeholders don't
+    /// match the handlers' `Path<T>` extractors, or a handler's `Auth<A>`
+    /// isn't what the route's `authorize` returns.
     pub fn route(mut self, path: &str, routes: MethodRoutes<S>) -> Self {
         let template_params = toapi_core::path_params(path).unwrap_or_else(|e| panic!("{e}"));
         assert!(
@@ -129,8 +176,20 @@ impl<S: Clone + Send + Sync + 'static> Api<S> {
             "route `{path}` is registered twice"
         );
         let mut generators = Generators::new();
-        for (method, document) in &routes.operations {
+        for Operation {
+            method,
+            document,
+            auth,
+        } in &routes.operations
+        {
             let doc = document(&mut generators);
+            if let Some((expected, name)) = doc.auth {
+                assert!(
+                    expected == auth.0,
+                    "{method} {path}: the handler extracts Auth<{name}>, but its authorize returns {}",
+                    auth.1
+                );
+            }
             let mut provided: Vec<String> = doc
                 .path
                 .as_ref()
@@ -156,7 +215,8 @@ impl<S: Clone + Send + Sync + 'static> Api<S> {
         self
     }
 
-    /// Replaces the default [`PubSub`] cache, e.g. with one backed by Redis.
+    /// Replaces the default [`PubSub`] cache, which caches nothing, e.g. with
+    /// an [`InMemoryCache`](crate::InMemoryCache) or one backed by Redis.
     /// Keep a clone of the `Arc` to invalidate tags outside of requests,
     /// e.g. from a background job:
     ///
@@ -168,6 +228,13 @@ impl<S: Clone + Send + Sync + 'static> Api<S> {
     /// ```
     pub fn cache<C: Cache>(mut self, cache: Arc<C>) -> Self {
         self.cache = cache;
+        self
+    }
+
+    /// How long the cache keeps a tagged response that has no TTL of its own.
+    /// Defaults to 14 days, like the TypeScript server's `defaultTTL`.
+    pub fn default_ttl(mut self, ttl: Duration) -> Self {
+        self.default_ttl = ttl;
         self
     }
 
@@ -211,11 +278,11 @@ impl<S: Clone + Send + Sync + 'static> Api<S> {
         let mut generators = Generators::new();
         let mut operations = Vec::new();
         for entry in &self.routes {
-            for (method, document) in &entry.routes.operations {
+            for operation in &entry.routes.operations {
                 operations.push(DocumentedOperation {
                     path: entry.path.clone(),
-                    method: method.clone(),
-                    doc: document(&mut generators),
+                    method: operation.method.clone(),
+                    doc: (operation.document)(&mut generators),
                 });
             }
         }
@@ -229,6 +296,7 @@ impl<S: Clone + Send + Sync + 'static> Api<S> {
         let openapi = Arc::new(self.openapi());
         let config = Arc::new(StreamConfig {
             cache: self.cache,
+            default_ttl: self.default_ttl,
             throttle: self.throttle,
             keepalive: self.keepalive,
             filter: self.filter,

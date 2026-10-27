@@ -44,7 +44,7 @@ impl<K, T: HandlerOutput<K>, E: IntoResponse> HandlerOutput<K> for Result<T, E> 
 /// An async handler function whose arguments and return type describe an
 /// OpenAPI operation. Implemented for async functions of up to 12 arguments.
 pub trait DocumentedHandler<Args, K> {
-    fn document(generators: &mut Generators) -> OperationDoc;
+    fn document(op: &mut OperationDoc, generators: &mut Generators);
 }
 
 macro_rules! impl_documented_handler {
@@ -56,11 +56,9 @@ macro_rules! impl_documented_handler {
             Fut::Output: HandlerOutput<K>,
             $($arg: OperationInput,)*
         {
-            fn document(generators: &mut Generators) -> OperationDoc {
-                let mut op = OperationDoc::default();
-                $(<$arg as OperationInput>::document(&mut op, generators);)*
-                <Fut::Output as HandlerOutput<K>>::document(&mut op, generators);
-                op
+            fn document(op: &mut OperationDoc, generators: &mut Generators) {
+                $(<$arg as OperationInput>::document(op, generators);)*
+                <Fut::Output as HandlerOutput<K>>::document(op, generators);
             }
         }
     };

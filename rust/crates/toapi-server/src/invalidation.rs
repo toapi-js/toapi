@@ -1,10 +1,5 @@
 use std::{
-    collections::BTreeSet,
-    convert::Infallible,
-    future::Future,
-    pin::Pin,
-    sync::Arc,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    collections::BTreeSet, convert::Infallible, future::Future, pin::Pin, sync::Arc, time::Duration,
 };
 
 use axum::{
@@ -23,6 +18,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use crate::{
     cache::{Cache, RequestCache},
     response::{TagInfo, TagKind},
+    route::ServerContext,
 };
 
 pub(crate) type TagFilter = Arc<dyn Fn(&str) -> bool + Send + Sync>;
@@ -31,6 +27,8 @@ pub(crate) type FilterFactory =
 
 pub(crate) struct StreamConfig {
     pub cache: Arc<dyn Cache>,
+    /// How long tagged responses without a TTL stay in the cache.
+    pub default_ttl: Duration,
     pub throttle: Duration,
     pub keepalive: Duration,
     pub filter: Option<FilterFactory>,
@@ -87,6 +85,10 @@ pub(crate) async fn tag_middleware(
     let origin = session_id(req.headers());
     req.extensions_mut()
         .insert(RequestCache::new(config.cache.clone(), origin.clone()));
+    req.extensions_mut().insert(ServerContext {
+        cache: config.cache.clone(),
+        default_ttl: config.default_ttl,
+    });
     let mut res = next.run(req).await;
     let Some(info) = res.extensions_mut().remove::<TagInfo>() else {
         return res;
@@ -96,18 +98,14 @@ pub(crate) async fn tag_middleware(
     {
         res.headers_mut().insert(TAGS_HEADER, value);
     }
-    if let Some(ttl) = info.ttl {
-        let expires_at = SystemTime::now()
-            .checked_add(ttl)
-            .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-            .map(|t| t.as_millis());
-        if let Some(expires_at) = expires_at {
-            res.headers_mut()
-                .insert(EXPIRES_AT_HEADER, HeaderValue::from(expires_at as u64));
-        }
+    if let Some(expires_at) = info.expires_at {
+        res.headers_mut()
+            .insert(EXPIRES_AT_HEADER, HeaderValue::from(expires_at));
     }
     if info.kind == TagKind::Invalidate && res.status().is_success() && !info.tags.is_empty() {
-        config.cache.invalidate(info.tags, origin);
+        // before the response goes out, so a client refetching right after
+        // its mutation doesn't get a stale cached response
+        config.cache.invalidate(info.tags, origin).await;
     }
     res
 }

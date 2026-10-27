@@ -31,9 +31,16 @@ same as in the TypeScript packages.
 ## Server: define the API
 
 The handler signatures are the definition. GET handlers return `Cached<T>`,
-mutations return `Invalidates<T>`; anything else doesn't compile.
+mutations return `Invalidates<T>`; anything else doesn't compile. Every route
+method takes an `authorize` first, like the `authorize` of a TypeScript
+handler.
 
 ```rust
+/// Runs before the cache and the handler; `Err` is the response.
+async fn signed_in(session: Session) -> Result<User, HttpError> {
+    session.user().ok_or_else(HttpError::unauthorized)
+}
+
 async fn get_user(
     State(state): State<AppState>,
     Path(UserPath { id }): Path<UserPath>,
@@ -43,7 +50,7 @@ async fn get_user(
 }
 
 async fn update_user(
-    _session: Session,
+    Auth(user): Auth<User>, // what `signed_in` returned
     State(state): State<AppState>,
     Path(UserPath { id }): Path<UserPath>,
     Json(body): Json<NewUser>,
@@ -54,8 +61,9 @@ async fn update_user(
 
 pub fn api() -> Api<AppState> {
     Api::new("Users", "1.0.0")
-        .route("/users", get(list_users).post(create_user))
-        .route("/users/{id}", get(get_user).put(update_user).delete(delete_user))
+        .cache(Arc::new(InMemoryCache::new()))
+        .route("/users", get(public, list_users).post(signed_in, create_user))
+        .route("/users/{id}", get(public, get_user).put(signed_in, update_user))
 }
 
 let router = axum::Router::new()
@@ -63,18 +71,36 @@ let router = axum::Router::new()
     .with_state(AppState::default());
 ```
 
+- `authorize` is an async function whose arguments are extractors that don't
+  read the body, returning `Result<A, E>`. `public` lets every request
+  through. Handlers read `A` with the `Auth<A>` extractor; `route` panics when
+  a handler's `Auth<A>` isn't what its `authorize` returns.
 - Every extractor implements `OperationInput`, which feeds the OpenAPI
   document. `Path`, `Query`, `Json`, `State`, `Extension`, `HeaderMap`,
-  `Method`, `Uri` and `RequestCache` are covered; custom extractors (auth)
-  implement it themselves, e.g. to add a `401` response.
+  `Method`, `Uri`, `RequestCache` and `Auth` are covered; custom extractors
+  (auth) implement it themselves, e.g. to add a `401` response.
 - `route` panics when the `{placeholders}` don't match the handler's `Path<T>`.
-- Invalidations go through the `Cache`, like in the TypeScript server. The
-  default `PubSub` caches nothing yet and passes invalidations on to the
-  invalidation streams of this process; `.cache(..)` replaces it.
+
+### Caching and invalidation
+
+Responses and invalidations go through the `Cache`, like in the TypeScript
+server:
+
+- A GET request runs `authorize`, then looks up its URL in the cache, then
+  runs the handler on a miss. A successful `Cached<T>` that set tags or a TTL
+  is stored until its TTL (or `.default_ttl(..)`, 14 days by default) runs out
+  or one of its tags is invalidated. Responses without tags or a TTL, e.g.
+  ones that depend on who asks, are never stored.
+- Every request that passes `authorize` gets the cached response for a URL.
+- A successful `Invalidates<T>` deletes the entries carrying its tags before
+  the response goes out, then sends the tags to the invalidation streams. A
+  response computed while its tags were invalidated isn't stored.
+- `PubSub`, the default, caches nothing and only passes invalidations on.
+  `InMemoryCache` caches within one process; `.cache(Arc::new(..))` sets it.
 - Tags can be invalidated imperatively: in a handler through the
-  `RequestCache` extractor (`cache.invalidate(["users"])`, attributed to the
-  calling client like `req.invalidate`), elsewhere through the `Cache` you
-  passed to `.cache(Arc::new(..))` and kept a clone of.
+  `RequestCache` extractor (`cache.invalidate(["users"]).await`, attributed to
+  the calling client like `req.invalidate`), elsewhere through the `Cache` you
+  passed to `.cache(..)` and kept a clone of.
 - `.hash_secret(..)`, `.throttle(..)`, `.keepalive(..)` and
   `.invalidation_filter(..)` configure the invalidation stream.
 
@@ -198,8 +224,6 @@ cargo test -p toapi-client --target wasm32-unknown-unknown --test wasm
 
 ## Not covered yet
 
-- Server-side response caching (`get`/`set` of the TypeScript server's `Cache`); tags and
-  TTLs are sent to clients and invalidations are published, but GET responses
-  aren't cached on the server.
-- Redis/Postgres caches (implement `Cache`).
+- Redis/Postgres caches (implement `Cache`), for caching across server
+  processes.
 - NDJSON streaming responses, multipart bodies, array query parameters.

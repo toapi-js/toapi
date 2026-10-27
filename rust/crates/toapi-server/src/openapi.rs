@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{any::TypeId, collections::BTreeMap};
 
 use axum::{
     Extension, Json,
@@ -42,6 +42,9 @@ pub struct OperationDoc {
     pub response: Option<Schema>,
     /// Additional responses keyed by status code, e.g. `"401"`.
     pub responses: BTreeMap<String, Value>,
+    /// The type an [`Auth`](crate::Auth) extractor expects, checked against
+    /// the route's `authorize` when the route is added.
+    pub auth: Option<(TypeId, &'static str)>,
 }
 
 /// Implemented by every extractor a handler takes.
