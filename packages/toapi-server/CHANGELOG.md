@@ -1,5 +1,11 @@
 # @toapi/server
 
+## 1.5.1
+
+### Patch Changes
+
+- efd7bf6: Hash tags on responses served from the server cache when `revalidationStream.hashSecret` is set. Tags stay in plain text in cache storage.
+
 ## 1.5.0
 
 ### Minor Changes
