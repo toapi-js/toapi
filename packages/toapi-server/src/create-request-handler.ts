@@ -113,9 +113,12 @@ export function createRequestHandler(
                         });
                   const headers = await headersSchema.parseAsync(cached.data);
 
-                  return new Response(body, {
+                  const res = new Response(body, {
                     headers: headers ?? undefined,
                   });
+                  // tags are stored in plain text, encode them in flight
+                  await encodeTags(api.revalidationStreamConfig?.hashSecret, res);
+                  return res;
                 }
               } catch (error) {
                 // catches errors while retrieving from cache
