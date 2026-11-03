@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import {
   afterAll,
@@ -225,6 +226,106 @@ describe.skipIf(!postgresAvailable)("PostgresCache", () => {
       attachment: null,
     });
   });
+
+  test("concurrent overlapping invalidations do not expose deadlocks", async () => {
+    const schema = `deadlock_${randomUUID().replaceAll("-", "").slice(0, 16)}`;
+    // Both plans are valid for the production query. Force them here so one
+    // DELETE visits insertion order (z, a), while the other visits key order
+    // (a, z), instead of depending on the planner to choose them by chance.
+    const firstPool = new Pool({
+      connectionString: POSTGRES_URL,
+      max: 1,
+      options:
+        "-c enable_mergejoin=off -c enable_nestloop=off -c statement_timeout=10000",
+    });
+    const secondPool = new Pool({
+      connectionString: POSTGRES_URL,
+      max: 1,
+      options:
+        "-c enable_hashjoin=off -c enable_nestloop=off -c statement_timeout=10000",
+    });
+    const controller = await pool.connect();
+    const first = new PostgresCache(firstPool, { schema });
+    let second: PostgresCache | undefined;
+    const pending: Promise<void>[] = [];
+    let outcomes: Promise<PromiseSettledResult<void>[]> | undefined;
+    let gateLocked = false;
+
+    try {
+      await first.set({ key: "z", ttl: 1000, tags: ["left", "right"] });
+      await first.set({ key: "a", ttl: 1000, tags: ["left", "right"] });
+      second = new PostgresCache(secondPool, { schema, createSchema: false });
+      await second.get("warmup");
+      await controller.query(`ANALYZE "${schema}".cache_entries`);
+      await controller.query(`ANALYZE "${schema}".cache_tags`);
+
+      // Pause each DELETE after it locks its first entry. Shared advisory
+      // locks allow both to proceed together once the controller opens the
+      // gate; they do not themselves create a deadlock between the workers.
+      await controller.query(`
+        CREATE FUNCTION "${schema}".pause_delete() RETURNS trigger
+        LANGUAGE plpgsql AS $$
+        BEGIN
+          PERFORM pg_advisory_xact_lock_shared(hashtext(TG_TABLE_SCHEMA));
+          RETURN OLD;
+        END;
+        $$;
+        CREATE TRIGGER pause_delete BEFORE DELETE ON "${schema}".cache_entries
+        FOR EACH ROW EXECUTE FUNCTION "${schema}".pause_delete();
+      `);
+      await controller.query("SELECT pg_advisory_lock(hashtext($1))", [schema]);
+      gateLocked = true;
+      const firstPid = (await firstPool.query("SELECT pg_backend_pid() AS pid"))
+        .rows[0].pid as number;
+      const secondPid = (await secondPool.query("SELECT pg_backend_pid() AS pid"))
+        .rows[0].pid as number;
+
+      pending.push(first.delete(["left"]));
+      // Attach rejection handlers immediately, including on early test exit.
+      outcomes = Promise.allSettled(pending);
+      const waitUntilBlocked = async (pid: number) => {
+        await expect
+          .poll(
+            async () => {
+              const { rows } = await controller.query(
+                "SELECT cardinality(pg_blocking_pids($1)) > 0 AS blocked",
+                [pid]
+              );
+              return rows[0].blocked;
+            },
+            { timeout: 5000, interval: 10 }
+          )
+          .toBe(true);
+      };
+      await waitUntilBlocked(firstPid);
+      pending.push(second.invalidate(["right"]));
+      outcomes = Promise.allSettled(pending);
+      // With ordered entry locking, the second worker may instead wait on
+      // the first worker before reaching the trigger. That is also valid.
+      await waitUntilBlocked(secondPid);
+      await controller.query("SELECT pg_advisory_unlock(hashtext($1))", [schema]);
+      gateLocked = false;
+
+      expect(await outcomes).toEqual([
+        { status: "fulfilled", value: undefined },
+        { status: "fulfilled", value: undefined },
+      ]);
+      expect((await controller.query(`SELECT * FROM "${schema}".cache_entries`)).rows)
+        .toEqual([]);
+      expect((await controller.query(`SELECT * FROM "${schema}".cache_tags`)).rows)
+        .toEqual([]);
+    } finally {
+      if (gateLocked) {
+        await controller.query("SELECT pg_advisory_unlock(hashtext($1))", [schema]);
+      }
+      await outcomes;
+      await first.close();
+      await second?.close();
+      await Promise.all([firstPool.end(), secondPool.end()]);
+      await controller.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
+      controller.release();
+    }
+  }, 20000);
 
   test("set replaces stale tags", async () => {
     const sut = createCache();
