@@ -1,5 +1,11 @@
 # @toapi/cache
 
+## 0.5.2
+
+### Patch Changes
+
+- 6bc863c: Serialize PostgreSQL cache invalidations and garbage collection with a transaction-level advisory lock to prevent overlapping deletions from deadlocking. Commit invalidation notifications atomically with deletion.
+
 ## 0.5.1
 
 ### Patch Changes
