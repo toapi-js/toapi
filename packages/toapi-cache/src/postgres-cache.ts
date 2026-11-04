@@ -176,25 +176,55 @@ export class PostgresCache implements Cache {
   }
 
   delete(tags: string[], meta?: Json): Promise<void> {
-    return this.invalidate(tags, meta)
+    return this.invalidate(tags, meta);
+  }
+
+  private async withDeletionLock<T>(
+    operation: (client: PoolClient) => Promise<T>
+  ): Promise<T> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      // Lock before touching entries, across every instance using this table.
+      // Its OID also unifies explicit schemas and search_path-based access.
+      await client.query(
+        `SELECT pg_advisory_xact_lock(
+          hashtext('toapi:cache_entries:delete'), $1::regclass::oid::integer
+        )`,
+        [this.entriesTable]
+      );
+      const result = await operation(client);
+      await client.query("COMMIT");
+      return result;
+    } catch (error) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {}
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async invalidate(tags: string[], meta?: Json): Promise<void> {
     await this.ready;
 
-    // `cache_tags` rows are removed automatically via `ON DELETE CASCADE`.
-    await this.pool.query(
-      `
-        DELETE FROM ${this.entriesTable}
-        WHERE key IN (SELECT key FROM ${this.tagsTable} WHERE tag = ANY($1))
-      `,
-      [tags]
-    );
+    await this.withDeletionLock(async (client) => {
+      // `cache_tags` rows are removed automatically via `ON DELETE CASCADE`.
+      await client.query(
+        `
+          DELETE FROM ${this.entriesTable}
+          WHERE key IN (SELECT key FROM ${this.tagsTable} WHERE tag = ANY($1))
+        `,
+        [tags]
+      );
 
-    await this.pool.query(`SELECT pg_notify($1, $2)`, [
-      this.channel,
-      JSON.stringify({ tags, meta } satisfies InvalidationMessage),
-    ]);
+      // PostgreSQL delivers the notification only when the deletion commits.
+      await client.query(`SELECT pg_notify($1, $2)`, [
+        this.channel,
+        JSON.stringify({ tags, meta } satisfies InvalidationMessage),
+      ]);
+    });
   }
 
   private async setupListener(): Promise<void> {
@@ -232,9 +262,11 @@ export class PostgresCache implements Cache {
 
   private async gc(): Promise<void> {
     try {
-      const result = await this.pool.query(
-        `DELETE FROM ${this.entriesTable} WHERE expires_at < $1`,
-        [Date.now()]
+      const result = await this.withDeletionLock((client) =>
+        client.query(
+          `DELETE FROM ${this.entriesTable} WHERE expires_at < $1`,
+          [Date.now()]
+        )
       );
       const changes = result.rowCount ?? 0;
 

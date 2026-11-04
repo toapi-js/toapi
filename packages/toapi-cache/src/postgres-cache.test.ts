@@ -227,7 +227,7 @@ describe.skipIf(!postgresAvailable)("PostgresCache", () => {
     });
   });
 
-  test("concurrent overlapping invalidations do not expose deadlocks", async () => {
+  test.each(["invalidation", "garbage collection"] as const)("concurrent overlapping invalidation and %s complete without deadlocks", async (operation) => {
     const schema = `deadlock_${randomUUID().replaceAll("-", "").slice(0, 16)}`;
     // Both plans are valid for the production query. Force them here so one
     // DELETE visits insertion order (z, a), while the other visits key order
@@ -252,10 +252,13 @@ describe.skipIf(!postgresAvailable)("PostgresCache", () => {
     let gateLocked = false;
 
     try {
-      await first.set({ key: "z", ttl: 1000, tags: ["left", "right"] });
-      await first.set({ key: "a", ttl: 1000, tags: ["left", "right"] });
+      const ttl = operation === "garbage collection" ? -1 : 1000;
+      await first.set({ key: "z", ttl, tags: ["left", "right"] });
+      await first.set({ key: "a", ttl, tags: ["left", "right"] });
       second = new PostgresCache(secondPool, { schema, createSchema: false });
       await second.get("warmup");
+      // Run GC explicitly below; disable its timer to avoid a second run.
+      if (operation === "garbage collection") await second.close();
       await controller.query(`ANALYZE "${schema}".cache_entries`);
       await controller.query(`ANALYZE "${schema}".cache_tags`);
 
@@ -298,11 +301,19 @@ describe.skipIf(!postgresAvailable)("PostgresCache", () => {
           .toBe(true);
       };
       await waitUntilBlocked(firstPid);
-      pending.push(second.invalidate(["right"]));
+      pending.push(operation === "garbage collection"
+        ? second["gc"]()
+        : second.invalidate(["right"]));
       outcomes = Promise.allSettled(pending);
-      // With ordered entry locking, the second worker may instead wait on
-      // the first worker before reaching the trigger. That is also valid.
+      // The advisory lock makes the second worker wait on the first worker
+      // before touching entries or reaching the trigger.
       await waitUntilBlocked(secondPid);
+      if (operation === "garbage collection") {
+        const { rows } = await controller.query(
+          "SELECT pg_blocking_pids($1) AS blockers", [secondPid]
+        );
+        expect(rows[0].blockers).toContain(firstPid);
+      }
       await controller.query("SELECT pg_advisory_unlock(hashtext($1))", [schema]);
       gateLocked = false;
 
@@ -326,6 +337,20 @@ describe.skipIf(!postgresAvailable)("PostgresCache", () => {
       controller.release();
     }
   }, 20000);
+
+  test("a failed notification rolls back deletion and releases the lock", async () => {
+    const sut = createCache();
+    await sut.set({ key: "k", data: { v: 1 }, ttl: 1000, tags: ["t"] });
+
+    // PostgreSQL rejects NOTIFY payloads of 8000 bytes or more.
+    await expect(sut.invalidate(["t"], "x".repeat(8000))).rejects.toMatchObject({
+      code: "22023",
+    });
+    expect(await sut.get("k")).toEqual({ data: { v: 1 }, attachment: null });
+
+    await sut.invalidate(["t"]);
+    expect(await sut.get("k")).toBeNull();
+  });
 
   test("set replaces stale tags", async () => {
     const sut = createCache();
