@@ -9,7 +9,7 @@ repository.workspace = true
 
 [dependencies]
 toapi-core.workspace = true
-bloom-core = "0.2.1"
+bloom-core = { version = "0.2.1", path = "../../../../bloom/bloom-core" }
 futures.workspace = true
 toapi-client.workspace = true
 

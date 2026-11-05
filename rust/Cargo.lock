@@ -17,8 +17,6 @@ dependencies = [
 [[package]]
 name = "async-context"
 version = "0.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbf2ad3ec5169efe92893db1cb458cc52bb0dc2d3ad50abbfe25c0afbf204596"
 dependencies = [
  "pin-project",
 ]
@@ -150,14 +148,13 @@ dependencies = [
 [[package]]
 name = "bloom-core"
 version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe985756938a4bedc19586dc7e216057a01cb5fbb9ff3b5a8df13c12abb31161"
 dependencies = [
  "async-channel",
  "async-context",
  "async-trait",
  "bloom-macro",
  "bon",
+ "futures-executor",
  "futures-util",
  "pin-project",
 ]
@@ -165,8 +162,6 @@ dependencies = [
 [[package]]
 name = "bloom-macro"
 version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1348d3a62014afcc72cfb3ed774b81e8399d53f774da4eb482db4163490e8a10"
 dependencies = [
  "proc-macro2",
  "quote",
