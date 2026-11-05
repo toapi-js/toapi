@@ -338,7 +338,7 @@ describe.skipIf(!postgresAvailable)("PostgresCache", () => {
     }
   }, 20000);
 
-  test("a failed notification rolls back deletion and releases the lock", async () => {
+  test("a failed notification still commits the deletion and releases the lock", async () => {
     const sut = createCache();
     await sut.set({ key: "k", data: { v: 1 }, ttl: 1000, tags: ["t"] });
 
@@ -346,8 +346,10 @@ describe.skipIf(!postgresAvailable)("PostgresCache", () => {
     await expect(sut.invalidate(["t"], "x".repeat(8000))).rejects.toMatchObject({
       code: "22023",
     });
-    expect(await sut.get("k")).toEqual({ data: { v: 1 }, attachment: null });
+    expect(await sut.get("k")).toBeNull();
 
+    // The deletion lock was released, so later invalidations still work.
+    await sut.set({ key: "k", data: { v: 2 }, ttl: 1000, tags: ["t"] });
     await sut.invalidate(["t"]);
     expect(await sut.get("k")).toBeNull();
   });
@@ -452,5 +454,78 @@ describe.skipIf(!postgresAvailable)("PostgresCache", () => {
 
       expect(events).toEqual([]);
     });
+  });
+});
+
+describe("PostgresCache connection handling", () => {
+  function createFakePool({ failRollback = false } = {}) {
+    let active = 0;
+    const stats = { maxActive: 0, released: [] as (Error | undefined)[] };
+    const pool = {
+      async query(sql: string) {
+        if (sql.includes("pg_notify")) throw new Error("notify failed");
+        return { rows: [], rowCount: 0 };
+      },
+      async connect() {
+        active++;
+        stats.maxActive = Math.max(stats.maxActive, active);
+        return {
+          async query(sql: string) {
+            // Yield so concurrent callers could overlap if not serialized.
+            await new Promise((resolve) => setTimeout(resolve, 5));
+            if (sql.trim().startsWith("DELETE")) throw new Error("delete failed");
+            if (sql === "ROLLBACK" && failRollback) {
+              throw new Error("rollback failed");
+            }
+            return { rows: [], rowCount: 0 };
+          },
+          release(error?: Error) {
+            active--;
+            stats.released.push(error);
+          },
+        };
+      },
+    };
+    return { pool: pool as unknown as Pool, stats };
+  }
+
+  test("destroys the client instead of reusing it when ROLLBACK fails", async () => {
+    const { pool, stats } = createFakePool({ failRollback: true });
+    const sut = new PostgresCache(pool, { createSchema: false });
+    try {
+      await expect(sut.invalidate(["t"])).rejects.toThrow("delete failed");
+      expect(stats.released).toHaveLength(1);
+      expect(stats.released[0]).toBeInstanceOf(Error);
+      expect(stats.released[0]?.message).toBe("rollback failed");
+    } finally {
+      await sut.close();
+    }
+  });
+
+  test("returns the client normally when ROLLBACK succeeds", async () => {
+    const { pool, stats } = createFakePool();
+    const sut = new PostgresCache(pool, { createSchema: false });
+    try {
+      await expect(sut.invalidate(["t"])).rejects.toThrow("delete failed");
+      expect(stats.released).toEqual([undefined]);
+    } finally {
+      await sut.close();
+    }
+  });
+
+  test("concurrent deletions hold at most one pooled connection per instance", async () => {
+    const { pool, stats } = createFakePool();
+    const sut = new PostgresCache(pool, { createSchema: false });
+    try {
+      const results = await Promise.allSettled(
+        Array.from({ length: 5 }, (_, i) => sut.invalidate([`t${i}`]))
+      );
+      // A failed deletion must not block the deletions queued behind it.
+      expect(results.map((r) => r.status)).toEqual(Array(5).fill("rejected"));
+      expect(stats.released).toHaveLength(5);
+      expect(stats.maxActive).toBe(1);
+    } finally {
+      await sut.close();
+    }
   });
 });

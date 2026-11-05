@@ -44,6 +44,8 @@ export class PostgresCache implements Cache {
   private ready: Promise<void>;
   private gcTimer?: ReturnType<typeof setTimeout>;
   private stopped = false;
+  /** Serializes this instance's deletion transactions; see `withDeletionLock`. */
+  private deletionQueue: Promise<unknown> = Promise.resolve();
 
   /** Fully-qualified (schema-prefixed when applicable) table identifiers. */
   private readonly entriesTable: string;
@@ -128,10 +130,7 @@ export class PostgresCache implements Cache {
   }): Promise<void> {
     await this.ready;
 
-    const client = await this.pool.connect();
-    try {
-      await client.query("BEGIN");
-
+    await this.withTransaction(async (client) => {
       await client.query(
         `
           INSERT INTO ${this.entriesTable} (key, data, attachment, added_at, expires_at)
@@ -163,47 +162,69 @@ export class PostgresCache implements Cache {
           [key, tag]
         );
       }
-
-      await client.query("COMMIT");
-    } catch (e) {
-      try {
-        await client.query("ROLLBACK");
-      } catch {}
-      throw e;
-    } finally {
-      client.release();
-    }
+    });
   }
 
   delete(tags: string[], meta?: Json): Promise<void> {
     return this.invalidate(tags, meta);
   }
 
-  private async withDeletionLock<T>(
+  /**
+   * Runs `operation` inside a transaction on a dedicated pooled client. If the
+   * transaction cannot be rolled back, the client is destroyed instead of
+   * being returned to the pool, so a connection that may still hold an open
+   * transaction (and its locks) is never reused.
+   */
+  private async withTransaction<T>(
     operation: (client: PoolClient) => Promise<T>
   ): Promise<T> {
     const client = await this.pool.connect();
+    let releaseError: Error | undefined;
     try {
       await client.query("BEGIN");
-      // Lock before touching entries, across every instance using this table.
-      // Its OID also unifies explicit schemas and search_path-based access.
-      await client.query(
-        `SELECT pg_advisory_xact_lock(
-          hashtext('toapi:cache_entries:delete'), $1::regclass::oid::integer
-        )`,
-        [this.entriesTable]
-      );
       const result = await operation(client);
       await client.query("COMMIT");
       return result;
     } catch (error) {
       try {
         await client.query("ROLLBACK");
-      } catch {}
+      } catch (rollbackError) {
+        releaseError =
+          rollbackError instanceof Error
+            ? rollbackError
+            : new Error("ROLLBACK failed");
+      }
       throw error;
     } finally {
-      client.release();
+      client.release(releaseError);
     }
+  }
+
+  /**
+   * Runs `operation` in a transaction holding the deletion advisory lock.
+   * Deletions from this instance are queued in-process first, so waiting on
+   * the lock occupies at most one pooled connection per instance and cannot
+   * starve `get()`/`set()` of connections.
+   */
+  private withDeletionLock<T>(
+    operation: (client: PoolClient) => Promise<T>
+  ): Promise<T> {
+    const run = this.deletionQueue.then(() =>
+      this.withTransaction(async (client) => {
+        // Lock before touching entries, across every instance using this
+        // table. Its OID also unifies explicit schemas and search_path-based
+        // access.
+        await client.query(
+          `SELECT pg_advisory_xact_lock(
+            hashtext('toapi:cache_entries:delete'), $1::regclass::oid::integer
+          )`,
+          [this.entriesTable]
+        );
+        return operation(client);
+      })
+    );
+    this.deletionQueue = run.catch(() => {});
+    return run;
   }
 
   async invalidate(tags: string[], meta?: Json): Promise<void> {
@@ -218,13 +239,16 @@ export class PostgresCache implements Cache {
         `,
         [tags]
       );
-
-      // PostgreSQL delivers the notification only when the deletion commits.
-      await client.query(`SELECT pg_notify($1, $2)`, [
-        this.channel,
-        JSON.stringify({ tags, meta } satisfies InvalidationMessage),
-      ]);
     });
+
+    // Notify only after the deletion has committed, so a notification that
+    // cannot be sent (e.g. a payload over PostgreSQL's 8000-byte limit or a
+    // full NOTIFY queue) never rolls back the invalidation of the shared
+    // cache. The error still propagates so callers can log it.
+    await this.pool.query(`SELECT pg_notify($1, $2)`, [
+      this.channel,
+      JSON.stringify({ tags, meta } satisfies InvalidationMessage),
+    ]);
   }
 
   private async setupListener(): Promise<void> {
