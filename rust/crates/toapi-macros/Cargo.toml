@@ -1,0 +1,17 @@
+[package]
+name = "toapi-macros"
+description = "The generate! macro, which generates a typed Toapi client from an OpenAPI document at compile time"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+toapi-codegen.workspace = true
+proc-macro2.workspace = true
+quote.workspace = true
+serde_json.workspace = true
+syn.workspace = true

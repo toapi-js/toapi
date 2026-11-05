@@ -55,3 +55,29 @@ jobs:
       - run: pnpm run build
       - run: pnpm exec playwright install --with-deps --no-progress
       - run: pnpm run test
+
+  rust:
+    name: Rust
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v7
+      - run: rustup update stable && rustup default stable && rustup target add wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      # the test runner has to match the wasm-bindgen crate in Cargo.lock
+      - id: wasm-bindgen
+        run: echo "version=$(grep -A1 '^name = "wasm-bindgen"$' Cargo.lock | sed -n 's/^version = "\(.*\)"$/\1/p')" >> "$GITHUB_OUTPUT"
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen@${{ steps.wasm-bindgen.outputs.version }}
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+      # the client and generated clients in the browser (wasm32-unknown-unknown)
+      - run: cargo clippy -p toapi-client --all-targets --target wasm32-unknown-unknown -- -D warnings
+      - run: cargo clippy -p users-client --target wasm32-unknown-unknown -- -D warnings
+      - run: cargo test -p toapi-client --target wasm32-unknown-unknown --test wasm
