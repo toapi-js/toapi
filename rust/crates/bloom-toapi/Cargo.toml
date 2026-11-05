@@ -1,0 +1,17 @@
+[package]
+name = "bloom-toapi"
+description = "Bloom Integration for Toapi"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+
+[dependencies]
+toapi-core.workspace = true
+bloom-core = "0.2.1"
+futures.workspace = true
+toapi-client.workspace = true
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt", "time"] }
