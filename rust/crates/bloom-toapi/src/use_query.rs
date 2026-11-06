@@ -8,13 +8,15 @@ use toapi_client::{Query, QueryCall, Request};
 
 use crate::{Error, subscription::Subscription};
 
-pub async fn use_query<R>(query: QueryCall<R>) -> Arc<Result<Arc<R::Response>, Arc<Error>>>
+type Value<T> = Result<Arc<T>, Arc<Error>>;
+
+pub async fn use_query<R>(query: QueryCall<R>) -> Arc<Value<R::Response>>
 where
     R: Request<Kind = Query>,
     R::Response: Identify + Send + Sync + 'static,
 {
     let stream = use_memo(ByHash(query), |ByHash(query)| {
-        Subscription::new(query.watch())
+        Subscription::new(query.watch()).into()
     });
 
     let initial = use_async_memo(stream.clone(), |stream| async move {
@@ -23,10 +25,11 @@ where
             .await
             .expect("Toapi Subscription failed to return initial value")
             .map_err(|error| Arc::new(error.into()))
+            .into()
     })
     .await;
 
-    let state: State<Result<Arc<R::Response>, Arc<Error>>> = use_state(|| initial);
+    let state: State<Value<R::Response>> = use_state(|| initial);
 
     let spawner = use_spawner();
     use_effect(
