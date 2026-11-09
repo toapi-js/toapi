@@ -45,7 +45,7 @@ mod request;
 mod rt;
 mod stream;
 
-pub use client::{Client, ClientBuilder, MutationCall, QueryCall};
+pub use client::{Client, ClientBuilder, IntoQueryCall, MutationCall, QueryCall};
 pub use error::Error;
 pub use request::{Kind, Mutation, Query, Request};
 pub use reqwest::Method;

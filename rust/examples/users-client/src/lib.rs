@@ -51,5 +51,24 @@
 //! api.client().call(users_client::GetUsersByIdRequest { id: 1 }).watch();
 //! # }
 //! ```
+mod app;
+mod client;
 
-toapi_client::generate!("../users-server/openapi.json");
+use bloom_client::{get_element_by_id, render};
+use std::panic;
+use wasm_bindgen::prelude::*;
+use web_sys::console;
+
+#[wasm_bindgen(start)]
+fn main() -> Result<(), JsValue> {
+    panic::set_hook(Box::new(console_error_panic_hook::hook));
+    console::log_1(&"Hello, world!".into());
+    console::log_1(&get_element_by_id("bloomroot").unwrap().tag_name().into());
+
+    render(
+        get_element_by_id("bloomroot").expect("Root node not found"),
+        app::UsersApp.into(),
+    );
+
+    Ok(())
+}

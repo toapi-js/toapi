@@ -388,6 +388,23 @@ impl Client {
     }
 }
 
+/// Anything that becomes a [`QueryCall`]: a `QueryCall` itself and the
+/// generated builders of GET requests (once their required fields are set).
+pub trait IntoQueryCall {
+    /// The request the query sends.
+    type Request: Request<Kind = Query>;
+
+    fn into_query_call(self) -> QueryCall<Self::Request>;
+}
+
+impl<R: Request<Kind = Query>> IntoQueryCall for QueryCall<R> {
+    type Request = R;
+
+    fn into_query_call(self) -> Self {
+        self
+    }
+}
+
 /// A GET request, returned by [`Client::call`].
 #[must_use = "a query does nothing until it is awaited or watched"]
 pub struct QueryCall<R> {

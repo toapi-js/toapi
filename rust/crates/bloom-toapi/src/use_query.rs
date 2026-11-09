@@ -1,20 +1,24 @@
 use bloom_core::{
-    ByHash, Identify, State, futures_util::task::SpawnExt, use_async_memo, use_effect, use_memo,
-    use_spawner, use_state,
+    ByHash, Identify, State, use_async_memo, use_effect, use_memo, use_spawner, use_state,
 };
 use futures::StreamExt;
 use std::sync::Arc;
-use toapi_client::{Query, QueryCall, Request};
+use toapi_client::{IntoQueryCall, Request};
 
 use crate::{Error, subscription::Subscription};
 
-type Value<T> = Result<Arc<T>, Arc<Error>>;
+type Value<T> = Result<Arc<T>, Error>;
 
-pub async fn use_query<R>(query: QueryCall<R>) -> Arc<Value<R::Response>>
+/// Accepts a generated GET builder (`client.users.get()`) or a [`QueryCall`]
+/// from [`Client::call`](toapi_client::Client::call).
+///
+/// [`QueryCall`]: toapi_client::QueryCall
+pub async fn use_query<C>(query: C) -> Value<<C::Request as Request>::Response>
 where
-    R: Request<Kind = Query>,
-    R::Response: Identify + Send + Sync + 'static,
+    C: IntoQueryCall,
+    <C::Request as Request>::Response: Identify + Send + Sync + 'static,
 {
+    let query = query.into_query_call();
     let stream = use_memo(ByHash(query), |ByHash(query)| {
         Subscription::new(query.watch()).into()
     });
@@ -24,12 +28,12 @@ where
         lock.next()
             .await
             .expect("Toapi Subscription failed to return initial value")
-            .map_err(|error| Arc::new(error.into()))
+            .map_err(|error| error.into())
             .into()
     })
     .await;
 
-    let state: State<Value<R::Response>> = use_state(|| initial);
+    let state: State<Value<<C::Request as Request>::Response>> = use_state(|| initial);
 
     let spawner = use_spawner();
     use_effect(
@@ -40,15 +44,15 @@ where
             if let Err(error) = spawner.spawn(async move {
                 let mut lock = stream.lock().await;
                 while let Some(result) = lock.next().await {
-                    state.set(result.map_err(|error| Arc::new(error.into())));
+                    state.set(result.map_err(|error| error.into()));
                 }
             }) {
-                err_state.set(Err(Arc::new(error.into())))
+                err_state.set(Err(error.into()))
             }
 
             || {}
         },
     );
 
-    state.into()
+    (*state).clone().into()
 }

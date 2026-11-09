@@ -509,6 +509,19 @@ impl Generator {
             }
         });
 
+        let into_query_call = toapi_core::is_query_method(&operation.method).then(|| {
+            quote! {
+                impl<#bounds> ::toapi_client::IntoQueryCall for #call<#(#generics),*> {
+                    type Request = #request;
+
+                    fn into_query_call(self) -> ::toapi_client::QueryCall<#request> {
+                        let client = self.__client.clone();
+                        client.call(self.into_request())
+                    }
+                }
+            }
+        });
+
         let doc = format!(
             " Builder for `{} {}`. Await it to send the request.",
             operation.method.to_uppercase(),
@@ -567,6 +580,8 @@ impl Generator {
                         ::core::future::IntoFuture::into_future(client.call(self.into_request()))
                     }
                 }
+
+                #into_query_call
             },
         )
     }

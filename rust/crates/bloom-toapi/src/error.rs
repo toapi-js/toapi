@@ -1,18 +1,21 @@
-use std::hash::{DefaultHasher, Hash as _, Hasher as _};
+use std::{
+    hash::{DefaultHasher, Hash as _, Hasher as _},
+    sync::Arc,
+};
 
 use bloom_core::Identify;
 use futures::task::SpawnError;
 use toapi_client::Error as ToapiError;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Error {
     ToapiError(ToapiError),
-    SpawnError(SpawnError),
+    SpawnError(Arc<SpawnError>),
 }
 
 impl From<SpawnError> for Error {
     fn from(v: SpawnError) -> Self {
-        Self::SpawnError(v)
+        Self::SpawnError(Arc::new(v))
     }
 }
 
