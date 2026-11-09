@@ -5,8 +5,25 @@ version.workspace = true
 edition.workspace = true
 publish = false
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
+bloom-client = { version = "0.2.1", path = "../../../../bloom/bloom-client" }
+bloom-core = { version = "0.2.1", path = "../../../../bloom/bloom-core" }
+bloom-html = { version = "0.2.1", path = "../../../../bloom/bloom-html" }
+bloom-rsx = "0.2.1"
+bloom-toapi = { version = "0.1.0", path = "../../crates/bloom-toapi" }
+console_error_panic_hook = "0.1.7"
 toapi-client.workspace = true
+wasm-bindgen = "0.2"
+web-sys = { version = "0.3", features = [
+    "console",
+    "SubmitEvent",
+    "FormData",
+    "HtmlFormElement",
+] }
+js-sys = "0.3"
 
 [dev-dependencies]
 users-server = { path = "../users-server" }

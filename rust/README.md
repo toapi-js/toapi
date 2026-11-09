@@ -140,6 +140,23 @@ fn main() {
 include!(concat!(env!("OUT_DIR"), "/toapi_client.rs"));
 ```
 
+Both can add derives to every generated struct and enum, on top of `Debug`,
+`Clone`, `PartialEq`, `Serialize` and `Deserialize`:
+
+```rust
+toapi_client::generate!("../users-server/openapi.json", derive(Hash, Eq));
+
+// build.rs
+toapi_codegen::Builder::new("../users-server/openapi.json")
+    .derive("Hash")
+    .derive("Eq")
+    .build()
+    .unwrap();
+```
+
+The derives apply to all generated types, so they have to work for all of
+them (`Hash`, for example, fails on floats, maps and `serde_json::Value`).
+
 The generated code is a path tree rooted at `Api`. Static path segments are
 fields, parameters are methods, and HTTP methods return call builders that
 take query parameters and body fields through setters:

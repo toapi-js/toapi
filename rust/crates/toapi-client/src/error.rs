@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::{
+    hash::{Hash, Hasher},
+    sync::Arc,
+};
 
 use reqwest::StatusCode;
 
@@ -43,5 +46,33 @@ impl std::error::Error for Error {
 impl From<reqwest::Error> for Error {
     fn from(e: reqwest::Error) -> Self {
         Error::Transport(Arc::new(e))
+    }
+}
+
+impl Hash for Error {
+    fn hash<H: Hasher>(&self, hasher: &mut H) {
+        match self {
+            Error::Transport(error) => {
+                0.hash(hasher);
+                format!("{:?}", error).hash(hasher);
+            }
+            Error::Status { status, body } => {
+                1.hash(hasher);
+                status.hash(hasher);
+                body.hash(hasher);
+            }
+            Error::Decode(error) => {
+                2.hash(hasher);
+                format!("{:?}", error).hash(hasher);
+            }
+            Error::Encode(message) => {
+                3.hash(hasher);
+                message.hash(hasher);
+            }
+            Error::Internal(message) => {
+                4.hash(hasher);
+                message.hash(hasher);
+            }
+        }
     }
 }

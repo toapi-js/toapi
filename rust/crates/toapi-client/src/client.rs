@@ -1,6 +1,7 @@
 use std::{
     collections::HashSet,
     future::IntoFuture,
+    hash::{Hash, Hasher},
     marker::PhantomData,
     sync::{Arc, Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard},
     time::Duration,
@@ -387,12 +388,48 @@ impl Client {
     }
 }
 
+/// Anything that becomes a [`QueryCall`]: a `QueryCall` itself and the
+/// generated builders of GET requests (once their required fields are set).
+pub trait IntoQueryCall {
+    /// The request the query sends.
+    type Request: Request<Kind = Query>;
+
+    fn into_query_call(self) -> QueryCall<Self::Request>;
+}
+
+impl<R: Request<Kind = Query>> IntoQueryCall for QueryCall<R> {
+    type Request = R;
+
+    fn into_query_call(self) -> Self {
+        self
+    }
+}
+
 /// A GET request, returned by [`Client::call`].
 #[must_use = "a query does nothing until it is awaited or watched"]
 pub struct QueryCall<R> {
     inner: Arc<Inner>,
     url: Result<String, Error>,
     request: PhantomData<fn() -> R>,
+}
+
+/// Hashes what the query fetches: the client it runs on (by identity, so
+/// clones of a client hash the same) and its URL, or the error that keeps
+/// it from having one.
+impl<R> Hash for QueryCall<R> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        Arc::as_ptr(&self.inner).hash(state);
+        match &self.url {
+            Ok(url) => {
+                0u8.hash(state);
+                url.hash(state);
+            }
+            Err(e) => {
+                1u8.hash(state);
+                e.to_string().hash(state);
+            }
+        }
+    }
 }
 
 impl<R> QueryCall<R>

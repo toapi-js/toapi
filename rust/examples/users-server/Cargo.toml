@@ -4,6 +4,7 @@ description = "Example Toapi server: the API is defined once, here"
 version.workspace = true
 edition.workspace = true
 publish = false
+default-run = 'users-server'
 
 [dependencies]
 toapi-cache.workspace = true

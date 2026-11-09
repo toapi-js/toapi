@@ -40,6 +40,24 @@
 //! include!(concat!(env!("OUT_DIR"), "/toapi_client.rs"));
 //! ```
 //!
+//! Both can add derives to every generated type (on top of `Debug`, `Clone`,
+//! `PartialEq`, `Serialize` and `Deserialize`):
+//!
+//! ```ignore
+//! toapi_client::generate!("../server/openapi.json", derive(Hash, Eq));
+//!
+//! // build.rs
+//! toapi_codegen::Builder::new("../server/openapi.json")
+//!     .derive("Hash")
+//!     .derive("Eq")
+//!     .build()
+//!     .unwrap();
+//! ```
+//!
+//! The derives apply to all generated structs and enums, so they have to work
+//! for all of them: `Hash` fails if any type contains a float, a map or a
+//! `serde_json::Value`.
+//!
 //! Supported schemas: objects, arrays, maps (`additionalProperties`), string
 //! enums, the JSON Schema primitive types with the integer and number formats
 //! schemars emits, nullable types and `$ref`s to `components/schemas`.
@@ -47,7 +65,7 @@
 
 use std::{
     collections::{BTreeMap, HashMap},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use proc_macro2::TokenStream;
@@ -74,35 +92,110 @@ fn error(message: impl Into<String>) -> Error {
     Error(message.into())
 }
 
+/// Options for the generated code.
+#[derive(Clone, Default)]
+pub struct Options {
+    derives: Vec<syn::Path>,
+}
+
+impl Options {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Adds a derive to every generated struct and enum.
+    pub fn derive(mut self, path: syn::Path) -> Self {
+        self.derives.push(path);
+        self
+    }
+}
+
 /// For build scripts: generates `$OUT_DIR/toapi_client.rs` from the OpenAPI
 /// document at `spec_path` and tells cargo to rerun when it changes.
+///
+/// Shorthand for `Builder::new(spec_path).build()`.
 pub fn build(spec_path: impl AsRef<Path>) -> Result<(), Error> {
-    let spec_path = spec_path.as_ref();
-    println!("cargo:rerun-if-changed={}", spec_path.display());
-    let out_dir = std::env::var("OUT_DIR")
-        .map_err(|_| error("OUT_DIR is not set; call this from a build script"))?;
-    generate_file(spec_path, Path::new(&out_dir).join("toapi_client.rs"))
+    Builder::new(spec_path).build()
 }
 
 /// Generates Rust code from the OpenAPI document at `spec_path` into `out_path`.
 pub fn generate_file(spec_path: impl AsRef<Path>, out_path: impl AsRef<Path>) -> Result<(), Error> {
-    let spec_path = spec_path.as_ref();
-    let spec = std::fs::read_to_string(spec_path)
-        .map_err(|e| error(format!("could not read {}: {e}", spec_path.display())))?;
-    let spec: Value = serde_json::from_str(&spec)
-        .map_err(|e| error(format!("{} is not valid JSON: {e}", spec_path.display())))?;
-    let code = generate(&spec)?;
-    std::fs::write(out_path.as_ref(), code).map_err(|e| {
-        error(format!(
-            "could not write {}: {e}",
-            out_path.as_ref().display()
-        ))
-    })
+    Builder::new(spec_path).write_to(out_path)
+}
+
+/// Configures code generation from a build script.
+///
+/// ```ignore
+/// toapi_codegen::Builder::new("../server/openapi.json")
+///     .derive("Hash")
+///     .derive("bloom_core::Identify")
+///     .build()
+///     .unwrap();
+/// ```
+#[derive(Debug, Clone)]
+pub struct Builder {
+    spec_path: PathBuf,
+    derives: Vec<String>,
+}
+
+impl Builder {
+    pub fn new(spec_path: impl AsRef<Path>) -> Self {
+        Self {
+            spec_path: spec_path.as_ref().to_path_buf(),
+            derives: Vec::new(),
+        }
+    }
+
+    /// Adds a derive to every generated struct and enum, as a path such as
+    /// `"Hash"` or `"bloom_core::Identify"`.
+    pub fn derive(mut self, path: impl Into<String>) -> Self {
+        self.derives.push(path.into());
+        self
+    }
+
+    /// Generates `$OUT_DIR/toapi_client.rs` and tells cargo to rerun when the
+    /// document changes.
+    pub fn build(self) -> Result<(), Error> {
+        println!("cargo:rerun-if-changed={}", self.spec_path.display());
+        let out_dir = std::env::var("OUT_DIR")
+            .map_err(|_| error("OUT_DIR is not set; call this from a build script"))?;
+        self.write_to(Path::new(&out_dir).join("toapi_client.rs"))
+    }
+
+    /// Generates the code into `out_path`.
+    pub fn write_to(self, out_path: impl AsRef<Path>) -> Result<(), Error> {
+        let options = self.options()?;
+        let spec_path = &self.spec_path;
+        let spec = std::fs::read_to_string(spec_path)
+            .map_err(|e| error(format!("could not read {}: {e}", spec_path.display())))?;
+        let spec: Value = serde_json::from_str(&spec)
+            .map_err(|e| error(format!("{} is not valid JSON: {e}", spec_path.display())))?;
+        let code = generate_with(&spec, &options)?;
+        std::fs::write(out_path.as_ref(), code).map_err(|e| {
+            error(format!(
+                "could not write {}: {e}",
+                out_path.as_ref().display()
+            ))
+        })
+    }
+
+    fn options(&self) -> Result<Options, Error> {
+        self.derives.iter().try_fold(Options::new(), |options, derive| {
+            let path = syn::parse_str(derive)
+                .map_err(|e| error(format!("invalid derive `{derive}`: {e}")))?;
+            Ok(options.derive(path))
+        })
+    }
 }
 
 /// Generates Rust code from an OpenAPI document.
 pub fn generate(spec: &Value) -> Result<String, Error> {
-    let tokens = generate_tokens(spec)?;
+    generate_with(spec, &Options::default())
+}
+
+/// Generates Rust code from an OpenAPI document, with options.
+pub fn generate_with(spec: &Value, options: &Options) -> Result<String, Error> {
+    let tokens = generate_tokens_with(spec, options)?;
     let file: syn::File =
         syn::parse2(tokens).map_err(|e| error(format!("generated invalid code: {e}")))?;
     Ok(format!(
@@ -113,7 +206,15 @@ pub fn generate(spec: &Value) -> Result<String, Error> {
 
 /// Generates the code for an OpenAPI document as tokens, e.g. for a macro.
 pub fn generate_tokens(spec: &Value) -> Result<TokenStream, Error> {
-    let mut generator = Generator::default();
+    generate_tokens_with(spec, &Options::default())
+}
+
+/// Generates the code for an OpenAPI document as tokens, with options.
+pub fn generate_tokens_with(spec: &Value, options: &Options) -> Result<TokenStream, Error> {
+    let mut generator = Generator {
+        derives: options.derives.clone(),
+        ..Generator::default()
+    };
 
     if let Some(schemas) = spec
         .pointer("/components/schemas")
@@ -169,12 +270,18 @@ struct Generator {
     /// The fields of every generated struct, for the call builders.
     structs: HashMap<String, Vec<Field>>,
     operations: Vec<Operation>,
+    /// Extra derives of every struct and enum, see [`Options::derive`].
+    derives: Vec<syn::Path>,
 }
 
-fn serde_derives() -> TokenStream {
-    quote! {
-        #[derive(Debug, Clone, PartialEq, ::toapi_client::__private::serde::Serialize, ::toapi_client::__private::serde::Deserialize)]
-        #[serde(crate = "::toapi_client::__private::serde")]
+impl Generator {
+    /// The attributes of every generated struct and enum.
+    fn derives(&self) -> TokenStream {
+        let extra = &self.derives;
+        quote! {
+            #[derive(Debug, Clone, PartialEq, #(#extra,)* ::toapi_client::__private::serde::Serialize, ::toapi_client::__private::serde::Deserialize)]
+            #[serde(crate = "::toapi_client::__private::serde")]
+        }
     }
 }
 
@@ -279,7 +386,7 @@ impl Generator {
             }
         }
         let ident = format_ident!("{}", name);
-        let derives = serde_derives();
+        let derives = self.derives();
         let doc = doc(schema);
         self.structs.insert(name.to_string(), field_infos);
         self.define(
@@ -304,7 +411,7 @@ impl Generator {
             quote!(#[serde(rename = #value)] #variant)
         });
         let ident = format_ident!("{}", name);
-        let derives = serde_derives();
+        let derives = self.derives();
         let doc = doc(schema);
         self.define(
             name,
@@ -697,6 +804,28 @@ mod tests {
         ] {
             assert!(code.contains(expected), "missing `{expected}` in\n{code}");
         }
+    }
+
+    #[test]
+    fn adds_derives() {
+        let spec = json!({
+            "openapi": "3.1.0",
+            "paths": {},
+            "components": { "schemas": {
+                "User": {
+                    "type": "object",
+                    "properties": { "role": { "$ref": "#/components/schemas/Role" } },
+                    "required": ["role"]
+                },
+                "Role": { "type": "string", "enum": ["admin", "member"] }
+            } }
+        });
+        let options = Options::new()
+            .derive(syn::parse_quote!(Hash))
+            .derive(syn::parse_quote!(bloom_core::Identify));
+        let code = generate_with(&spec, &options).unwrap();
+        let derive = "#[derive(\n    Debug,\n    Clone,\n    PartialEq,\n    Hash,\n    bloom_core::Identify,";
+        assert_eq!(code.matches(derive).count(), 2, "missing derives in\n{code}");
     }
 
     #[test]

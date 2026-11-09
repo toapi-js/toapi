@@ -1,6 +1,8 @@
 //! The example API. `api()` is the single definition: it serves requests and
 //! produces `openapi.json`, from which `users-client` is generated.
 
+pub mod client;
+
 use std::{
     collections::BTreeMap,
     convert::Infallible,
